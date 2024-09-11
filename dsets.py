@@ -121,17 +121,19 @@ class CT:
         return ct_chunks, icr_center
     
 
-@functools.lru_cache(maxsize = 1, typed = True)
+@functools.lru_cache(maxsize = 1, typed = True) # this would be enough if we are sure that the nodules loading will occur in order 
+# meaning that all the candidate nodules of specific subject is first extracted, then the second subject's nodules and so on. 
 def get_ct(series_uid):
     return CT(series_uid)
 
 raw_cache = getCache("cache_candidates")
 
-@raw_cache.memoize(typed = True)
+@raw_cache.memoize(typed = True) # save on disk to avoid loading the same ct scan each time to extract specific nodule surrounding 
+# (just upload it once and save it for further nodules extraction from the same subject)
 def get_ct_raw_candidates(series_uid ,xyz_center, irc_diameters):
     ct = get_ct(series_uid)
     ct_chunks, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
-    return xyz_center, irc_diameters
+    return ct_chunks, icr_center
 
 
 
@@ -168,7 +170,7 @@ class LunaDataset(Dataset):
     
     def __getitem__(self, ind):
         candidate_info = self.candidates_info_list[ind] 
-        irc_width = IRC_tuple(32,28,28) # to make the size of the candidates constant over the training process 
+        irc_width = IRC_tuple(32, 48, 48) # to make the size of the candidates constant over the training process 
         # ignore the diameter for the sake of unifying the extracted voxel array shape.
         
         curr_ct = CT(candidate_info.series_uid)

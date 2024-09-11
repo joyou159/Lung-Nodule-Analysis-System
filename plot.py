@@ -11,7 +11,7 @@ def visualize_candidate(ct_candidate):
         ct_candidate (CandidateInfoTuple): information list of that candidate nodule.
     """
     subject_ct = get_ct(ct_candidate.series_uid)
-    irc_diameters = IRC_tuple(64,64,64) 
+    irc_diameters = IRC_tuple(32, 48, 48) 
     ct_chunks, icr_center = subject_ct.get_raw_candidate_nodule(ct_candidate.center_xyz,irc_diameters)
     
     if ct_candidate.diameter_mm: 

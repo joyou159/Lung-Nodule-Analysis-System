@@ -1,5 +1,9 @@
 from collections import namedtuple
 import numpy as np 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 
 CandidateInfoTuple = namedtuple("CandidateInfoTuple", 
