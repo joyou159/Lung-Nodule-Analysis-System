@@ -130,28 +130,26 @@ def enumerateWithEstimate(
     if iter_len is None:
         iter_len = len(iter)
 
-    if backoff is None:
+    if backoff is None: # backoff controls the rate at which logging occurs 
         backoff = 2
-        while backoff ** 7 < iter_len:
+        while backoff ** 7 < iter_len: # finding a suitable rate  
             backoff *= 2
 
-    assert backoff >= 2
-    while print_ndx < start_ndx * backoff:
+    assert backoff >= 2 
+    while print_ndx < start_ndx * backoff: # 'print_ndx' specifies what is the upcoming index to be printed.
         print_ndx *= backoff
 
     log.warning("{} ----/{}, starting".format(
         desc_str,
         iter_len,
     ))
+
     start_ts = time.time()
     for (current_ndx, item) in enumerate(iter):
-        yield (current_ndx, item)
-        if current_ndx == print_ndx:
+        yield (current_ndx, item) # generator return 
+        if current_ndx == print_ndx: 
             # ... <1>
-            duration_sec = ((time.time() - start_ts)
-                            / (current_ndx - start_ndx + 1)
-                            * (iter_len-start_ndx)
-                            )
+            duration_sec = ((time.time() - start_ts) / (current_ndx - start_ndx + 1)) * (iter_len-start_ndx) # Estimates the remaining time
 
             done_dt = datetime.datetime.fromtimestamp(start_ts + duration_sec)
             done_td = datetime.timedelta(seconds=duration_sec)
@@ -160,13 +158,13 @@ def enumerateWithEstimate(
                 desc_str,
                 current_ndx,
                 iter_len,
-                str(done_dt).rsplit('.', 1)[0],
-                str(done_td).rsplit('.', 1)[0],
+                str(done_dt).rsplit('.', 1)[0], # date & time get up to seconds (exclude microseconds)
+                str(done_td).rsplit('.', 1)[0], # elapsed time get up to seconds (exclude microseconds)
             ))
 
-            print_ndx *= backoff
+            print_ndx *= backoff # update the upcoming print_ndx using the selected rate 
 
-        if current_ndx + 1 == start_ndx:
+        if current_ndx + 1 == start_ndx: 
             start_ts = time.time()
 
     log.warning("{} ----/{}, done at {}".format(

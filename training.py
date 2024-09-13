@@ -8,6 +8,7 @@ from util import *
 from logconfig import *
 from dsets import *
 from model import LunaModel 
+from torch.utils.tensorboard import SummaryWriter
 
 
 log = logging.getLogger(__name__)
@@ -58,9 +59,27 @@ class LunaTrainingApp():
             type=tuple,
         )
 
+        parser.add_argument('--tb-prefix',
+            default='tensorboard-prefix',
+            help="Data prefix to use for Tensorboard run.",
+        )
+
+        parser.add_argument('comment',
+            help="Comment suffix for Tensorboard run.",
+            nargs='?',
+            default='luna',
+        )
+
         self.args_list  = parser.parse_args(sys_argv)
 
         self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S') # to identify running times
+
+        # tensorboard settings
+        self.train_writer = None
+        self.val_writer = None
+        self.totalTrainingSamples_count = 0
+
+
         self.use_cuda =  torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
         # generic 
@@ -100,6 +119,16 @@ class LunaTrainingApp():
         return data_loader
 
 
+    def initTensorboardWriters(self):
+        if self.train_writer is None: 
+            log_dir = os.path.join('runs', self.args_list.tb_prefix, self.time_str) 
+
+            self.train_writer = SummaryWriter(
+                log_dir=log_dir + '-train_cls-' + self.args_list.comment)
+            self.val_writer = SummaryWriter(
+                log_dir=log_dir + '-val_cls-' + self.args_list.comment)
+
+
     def main(self):
         log.info(f"Starting {type(self).__name__}, {self.args_list}")
 
@@ -107,12 +136,24 @@ class LunaTrainingApp():
         val_dl = self.init_data_loader(val_set_bool = True)
 
         for epoch_ndx in range(1, self.args_list.epochs + 1): 
+
+            log.info(f"epoch no.{epoch_ndx} of {self.args_list.epochs},
+             (train_dl/val_dl): {len(trian_dl)}/{len(val_dl)} -- with batch size of {self.args_list.batch_size} on {torch.cuda.device_count()} GPUs")
+
             # training  
             train_metrics_per_sample = self.training_epoch(epoch_ndx, train_dl)  
             self.log_metrics(epoch_ndx, "train", train_metrics_per_sample) 
             # validation 
             val_metrics_per_sample = self.validation_epoch(epoch_ndx, val_dl)
             self.log_metrics(epoch_ndx, "val", val_metrics_per_sample)
+
+
+
+        if hasattr(self, 'train_writer'):
+            self.train_writer.close()
+            self.val_writer.close()
+
+
 
 
     def training_epoch(self,epoch_ndx , train_dl):
@@ -139,7 +180,10 @@ class LunaTrainingApp():
             loss_val.backward() # compute gradients. 
             self.optimizer.step() # update parameters.
 
-        return  train_metrics_per_sample.to("cpu") # release space from the gpu 
+        # tensorboard settings 
+        self.totalTrainingSamples_count += len(train_dl.dataset)
+
+        return train_metrics_per_sample.to("cpu") # release space from the gpu 
 
 
     def validation_epoch(self, epoch_ndx, val_dl):
@@ -195,6 +239,11 @@ class LunaTrainingApp():
 
 
     def log_metrics(self, epoch_ndx:int, mode:str, metrics_per_sample, classification_thr = 0.5):
+
+        self.initTensorboardWriters() 
+
+        log.info(f"E{epoch_ndx}, {type(self)__name__}")
+
         # non-nodule class
         neg_label_mask = metrics_per_sample[METRICS_LABEL_NDX] <= classification_thr   
         neg_pred_mask = metrics_per_sample[METRICS_PRED_NDX] <= classification_thr  
@@ -222,6 +271,40 @@ class LunaTrainingApp():
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/all"]:.4f} overall loss {metrics_dict["acc/all"]:.1f}% accuracy')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
+
+        # tensorboard reporting 
+        writer = getattr(self, mode + '_writer') # SummaryWriter object 
+
+        for key, value in metrics_dict.items():
+            writer.add_scalar(key, value, self.totalTrainingSamples_count) 
+
+        writer.add_pr_curve(
+            'pr',
+            metrics_per_sample[METRICS_LABEL_NDX],
+            metrics_per_sample[METRICS_PRED_NDX],
+            self.totalTrainingSamples_count,
+        ) 
+
+        bins = [x/50.0 for x in range(51)]
+
+        neg_hist_mask = neg_label_mask & (metrics_per_sample[METRICS_PRED_NDX] > 0.01)
+        pos_hist_mask = pos_label_mask & (metrics_per_sample[METRICS_PRED_NDX] < 0.99)
+
+        if neg_hist_mask.any():
+            writer.add_histogram(
+                'is_neg',
+                metrics_per_sample[METRICS_PRED_NDX, negHist_mask],
+                self.totalTrainingSamples_count,
+                bins=bins,
+            )
+        if pos_hist_mask.any():
+            writer.add_histogram(
+                'is_pos',
+                metrics_per_sample[METRICS_PRED_NDX, posHist_mask],
+                self.totalTrainingSamples_count,
+                bins=bins,
+            )
+
 
 
 # usual 'if-main' stanza
