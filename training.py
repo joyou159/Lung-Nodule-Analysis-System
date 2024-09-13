@@ -9,17 +9,11 @@ from dsets import *
 from model import LunaModel 
 
 
-
 # macros for keeping track individual samples records in each batch.
 METRICS_LABEL_NDX=0
 METRICS_PRED_NDX=1
 METRICS_LOSS_NDX=2
 METRICS_SIZE = 3
-
-
-
-def enumerate_with_time_estimates(train_dl, format_str, start_ndx):
-    pass
 
 # fully fledged command-line application, meaning  It will
 # parse command-line arguments, have a full-featured --help command, and be easy to
@@ -28,15 +22,14 @@ def enumerate_with_time_estimates(train_dl, format_str, start_ndx):
 class LunaTrainingApp():
     def __init__(self, sys_argv = None):
         if sys_argv is None: # if the caller doesn't provide parameters, we get them from the command line.
-            sys_argv = sys.argv[1:]
-
+             sys_argv = sys.argv[1:]
+        
         parser = argparse.ArgumentParser()
-
         parser.add_argument("--num_workers", 
                             help="Number of worker processes for background data loading (number of cores)", 
                             default = 8,
                             type=int)
-        
+
         parser.add_argument('--batch_size',
             help='Batch size to use for training',
             default=32,
@@ -48,22 +41,36 @@ class LunaTrainingApp():
             default=1,
             type=int,
         )
+        
+        parser.add_argument('--model_path',
+            help='The path to the existing model',
+            default=None,
+            type=str,
+        )
+        
+        parser.add_argument('--subsets_included',
+            help='The number of subsets included in the training process',
+            default=(0,1,2,3,4),
+            type=tuple,
+        )
 
         self.args_list  = parser.parse_args(sys_argv)
-        self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S') # to identify running times
 
+        self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S') # to identify running times
         self.use_cuda =  torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
-
         # generic 
-        self.model = self.init_model() 
+        
+        self.model = self.init_model(self.args_list.model_path) 
         self.optimizer = self.init_optimizer()
 
 
-    def init_model(self):
-        model = LunaModel() 
+    def init_model(self, model_path = None):
+        model = LunaModel()
+        if model_path is not None:
+            model.load_state_dict(torch.load(model_path))
         if self.use_cuda:
-            log.info(f"Using CUDA, with {torch.cuda.device_count()} devices")
+            print(f"Using CUDA, with {torch.cuda.device_count()} devices")
             if torch.cuda.device_count() > 1:  # if the system on which the training is conducted has more than just one GPU
                 # then we would distribute the workload on them then collect and
                 # resync parameter updates and so on.      
@@ -77,7 +84,7 @@ class LunaTrainingApp():
 
 
     def init_data_loader(self, val_set_bool = False):
-        dataset = LunaDataset(val_set_bool=val_set_bool, val_stride=10)
+        dataset = LunaDataset(DATASET_DIR_PATH, self.args_list.subsets_included, val_set_bool=val_set_bool, val_stride=10)
         batch_size = self.args_list.batch_size
         if self.use_cuda:
             batch_size *= torch.cuda.device_count()  # each GPU has its own batch 
@@ -90,7 +97,7 @@ class LunaTrainingApp():
 
 
     def main(self):
-        log.info(f"Starting {type(self).__name__}, {self.args}")
+        print(f"Starting {type(self).__name__}, {self.args_list}")
 
         train_dl = self.init_data_loader()
         val_dl = self.init_data_loader(val_set_bool = True)
@@ -105,6 +112,7 @@ class LunaTrainingApp():
 
 
     def training_epoch(self, epoch_ndx, train_dl):
+        print(f"Epoch no.{epoch_ndx} -> Training")
         self.model.train() # set the model on the training mode 
 
         # initialize empty metrics array per sample to keep track the performance per sample. This would give us a nice insights into 
@@ -114,15 +122,8 @@ class LunaTrainingApp():
             len(train_dl.dataset), 
             device=self.device
         )
-
-        # stylistic way of iterating, not necessary 
-        batch_iterator = enumerate_with_time_estimates(
-            train_dl, 
-            f"E{epoch_ndx} Training", 
-            start_ndx=train_dl.num_workers
-        )
-
-        for batch_ndx, curr_batch in batch_iterator:
+        
+        for batch_ndx, curr_batch in enumerate(train_dl):
             self.optimizer.zero_grad() # remove leftover gradient tensors
             # custom loss function to handle the separation between training samples per batch. 
             loss_val = self.compute_batch_loss(batch_ndx, curr_batch, train_dl.batch_size, train_metrics_per_sample)
@@ -134,6 +135,7 @@ class LunaTrainingApp():
 
 
     def validation_epoch(self, epoch_ndx, val_dl):
+        print(f"Epoch no.{epoch_ndx} -> Validation")
         with torch.no_grad(): 
             self.model.eval()
             val_metrics_per_sample = torch.zeros(
@@ -142,13 +144,7 @@ class LunaTrainingApp():
                 device = self.device
             )
 
-            batch_iterator = enumerate_with_time_estimates(
-            val_dl, 
-            f"E{epoch_ndx} Validation", 
-            start_ndx=val_dl.num_workers
-            )
-
-            for batch_ndx, curr_batch in batch_iterator:
+            for batch_ndx, curr_batch in enumerate(val_dl):
                 self.compute_batch_loss(batch_ndx, curr_batch, val_dl.batch_size, val_metrics_per_sample) 
                 # no need to store the loss as there's no update required 
             
@@ -175,7 +171,7 @@ class LunaTrainingApp():
         # since train_metrics_per_sample is a tensor for the whole epoch, meaning all the batches samples contribution and effect 
         # will be recorded, so we need effective slicing. 
         start_ndx = batch_ndx * batch_size
-        end_ndx = start_ndx + curr_batch.size(0) 
+        end_ndx = start_ndx + labels.size(0) 
 
         train_metrics_per_sample[METRICS_LABEL_NDX, start_ndx:end_ndx] = labels[:,1].detach() # detach from the computaitonal graph 
         # phrased differently, don't keep gradient. 
@@ -210,9 +206,10 @@ class LunaTrainingApp():
         metrics_dict["acc/neg"] = (neg_correct / np.float32(neg_count)) * 100  
         metrics_dict["acc/pos"] = (pos_correct / np.float32(pos_count)) * 100  
 
-        log.info(f"E{epoch_ndx} {mode}  {metrics_dict["loss/all"]:.4f} overall loss {metrics_dict["acc/all"]:.1f}% accuracy")
-        log.info(f"E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct")
-        log.info(f"E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct")
+        print(f'E{epoch_ndx} {mode}  {metrics_dict["loss/all"]:.4f} overall loss {metrics_dict["acc/all"]:.1f}% accuracy')
+        print(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
+        print(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
+
 
 
 # usual 'if-main' stanza

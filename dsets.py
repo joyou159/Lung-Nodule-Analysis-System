@@ -10,21 +10,27 @@ from disk_caching import *
 from torch.utils.data import Dataset 
 import torch 
 import copy 
+import random
+
 
 @functools.lru_cache(maxsize=1)  # caches the results of function call, if it have been called with the same argument. 
-def get_candidate_info_list(dataset_dir_path, required_on_desk=True):
+def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
     """ 
     Generate a more sanitized, cleaned, unified interface to the human
     annotated data.
     
     Args:
+        dataset_dir_path (str): The path to dataset dir. 
         required_on_desk (bool): If True, filters candidates based on the subsets present on disk.
-    
+        num_subsets_included (tuple): the subsets to be included from the on-desk dataset. 
+                                    This is specifically useful in case of computational limitation. 
     Returns:
         list: List of 'CandidateInfoTuple' for all the subjects of existing CT scans.
     """
-    mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd")
-    uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in mhd_list} # the unique series_uids for further filtration
+    
+    mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd") # extract all 
+    filtered_mhd_list = [mhd for mhd in mhd_list if any(f"subset{id}" in mhd for id in subsets_included)]
+    uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list} # the unique series_uids for further filtration
     
     annotation_info = dict()
     
@@ -67,7 +73,6 @@ def get_candidate_info_list(dataset_dir_path, required_on_desk=True):
     # so overall, the returned list has the candidates that are nodules indeed ordered descendingly by their sizes  
     # after that come the non-nodule candidates
     return candidate_list
-
 
 class CT: 
     def __init__(self, series_uid):
@@ -138,43 +143,51 @@ def get_ct_raw_candidates(series_uid ,xyz_center, irc_diameters):
 
 
 class LunaDataset(Dataset):
-    def __init__(self,dataset_dir_path:str, val_stride:int, val_set_bool:bool = None, series_uid:str = None):
+    def __init__(self,dataset_dir_path:str, subsets_included:tuple = (0,1,2,3,4) ,val_stride:int = 0, val_set_bool:bool = None, series_uid:str = None, sortby_str:str='random'):
         """
             Initialize training or validation dataset over the entire subjects of specific sujbect 
             by skipping over using a specified validation stride.
             
             Parameters:
-                - dataset_dir_path: The path to the dataset directory. 
+                - dataset_dir_path: The path to the dataset directory.
+                - subsets_included: The subsets of the dataset to be included. 
                 - val_stride: The stride used for skipping over nodules candidates to generate training and validation set. 
                     Meaning, if the stride value is '10', this can be interpreted as having training and validation 
                     split of ratio (1/10).
                 - val_set_bool: specifies which dataset to return. (training or validation)                 
         """
         
-        self.candidates_info_list = copy.copy(get_candidate_info_list(dataset_dir_path)) # to isolate the cached list 
+        self.candidates_info_list = copy.copy(get_candidate_info_list(DATASET_DIR_PATH, required_on_desk=True,subsets_included = subsets_included)) # to isolate the cached list 
         
         if series_uid: # for specific subject 
             self.candidates_info_list = [x for x in self.candidates_info_list if x.series_uid == series_uid]
-        
+   
         if val_set_bool: # return validation set only 
             assert val_stride > 0, val_stride
-            self.self.candidates_info_list = self.candidates_info_list[::val_stride]
+            self.candidates_info_list = self.candidates_info_list[::val_stride]
             assert self.candidates_info_list
         elif val_stride > 0:
             del self.candidates_info_list[::val_stride] # remove this entries, return only the training set 
             assert self.candidates_info_list
             
+        if sortby_str == 'random':
+            random.shuffle(self.candidates_info_list)
+        elif sortby_str == 'series_uid':
+            self.candidates_info_list.sort(key=lambda x: (x.series_uid, tuple(x.center_xyz)))
+        elif sortby_str == 'label_and_size': # the default
+            pass
+        else:
+            raise Exception("Unknown sort: " + repr(sortby_str))
     
     def __len__(self):
-        return len(self.candidate_info_list)
+        return len(self.candidates_info_list)
     
     def __getitem__(self, ind):
         candidate_info = self.candidates_info_list[ind] 
         irc_width = IRC_tuple(32, 48, 48) # to make the size of the candidates constant over the training process 
         # ignore the diameter for the sake of unifying the extracted voxel array shape.
         
-        curr_ct = CT(candidate_info.series_uid)
-        candidate_arr, irc_center = curr_ct.get_raw_candidate_nodule(candidate_info.center_xyz, irc_width)
+        candidate_arr, irc_center = get_ct_raw_candidates(candidate_info.series_uid ,candidate_info.center_xyz, irc_width)
         
         candidate_tensor = torch.from_numpy(candidate_arr)
         candidate_tensor = candidate_tensor.to(torch.float32)

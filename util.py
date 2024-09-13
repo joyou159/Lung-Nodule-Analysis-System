@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 CandidateInfoTuple = namedtuple("CandidateInfoTuple", 
                                 "isNodule_bool, diameter_mm, series_uid, center_xyz")
 
+DATASET_DIR_PATH = "luna/"
 
 # for consistency 
 IRC_tuple = namedtuple('IRC_tuple', ["index", "row", "column"]) 
@@ -53,3 +54,5 @@ def xyz2irc(xyz_coord, xyz_origin, xyz_sizes, irc_transform_mat):
     cri_coord = ((coordinate_xyz - physical_origin) @ np.linalg.inv(irc_transform_mat)) / physical_sizes
     rounded_cri_coord = np.round(cri_coord).astype(int)     
     return IRC_tuple(*rounded_cri_coord[::-1])
+
+

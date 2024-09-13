@@ -22,8 +22,6 @@ class LunaBlock(nn.Module):
 
 
 
-
-
 class LunaModel(nn.Module):
     def __init__(self,in_channels = 1, conv_channels= 8): 
         super(LunaModel, self).__init__()
