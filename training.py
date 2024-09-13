@@ -5,9 +5,13 @@ import torch
 import torch.nn as nn 
 from torch.utils.data import DataLoader
 from util import *
+from logconfig import *
 from dsets import *
 from model import LunaModel 
 
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 # macros for keeping track individual samples records in each batch.
 METRICS_LABEL_NDX=0
@@ -70,7 +74,7 @@ class LunaTrainingApp():
         if model_path is not None:
             model.load_state_dict(torch.load(model_path))
         if self.use_cuda:
-            print(f"Using CUDA, with {torch.cuda.device_count()} devices")
+            log.info(f"Using CUDA, with {torch.cuda.device_count()} devices")
             if torch.cuda.device_count() > 1:  # if the system on which the training is conducted has more than just one GPU
                 # then we would distribute the workload on them then collect and
                 # resync parameter updates and so on.      
@@ -97,7 +101,7 @@ class LunaTrainingApp():
 
 
     def main(self):
-        print(f"Starting {type(self).__name__}, {self.args_list}")
+        log.info(f"Starting {type(self).__name__}, {self.args_list}")
 
         train_dl = self.init_data_loader()
         val_dl = self.init_data_loader(val_set_bool = True)
@@ -111,8 +115,7 @@ class LunaTrainingApp():
             self.log_metrics(epoch_ndx, "val", val_metrics_per_sample)
 
 
-    def training_epoch(self, epoch_ndx, train_dl):
-        print(f"Epoch no.{epoch_ndx} -> Training")
+    def training_epoch(self,epoch_ndx , train_dl):
         self.model.train() # set the model on the training mode 
 
         # initialize empty metrics array per sample to keep track the performance per sample. This would give us a nice insights into 
@@ -123,7 +126,12 @@ class LunaTrainingApp():
             device=self.device
         )
         
-        for batch_ndx, curr_batch in enumerate(train_dl):
+        batch_iter = enumerateWithEstimate(
+            train_dl,
+            f"E{epoch_ndx} Training",
+            start_ndx=train_dl.num_workers)
+        
+        for batch_ndx, curr_batch in batch_iter:
             self.optimizer.zero_grad() # remove leftover gradient tensors
             # custom loss function to handle the separation between training samples per batch. 
             loss_val = self.compute_batch_loss(batch_ndx, curr_batch, train_dl.batch_size, train_metrics_per_sample)
@@ -135,7 +143,6 @@ class LunaTrainingApp():
 
 
     def validation_epoch(self, epoch_ndx, val_dl):
-        print(f"Epoch no.{epoch_ndx} -> Validation")
         with torch.no_grad(): 
             self.model.eval()
             val_metrics_per_sample = torch.zeros(
@@ -143,8 +150,14 @@ class LunaTrainingApp():
                 len(val_dl.dataset),
                 device = self.device
             )
+             
+            batch_iter = enumerateWithEstimate(
+            val_dl,
+            f"E{epoch_ndx} Validation",
+            start_ndx=val_dl.num_workers)
+        
 
-            for batch_ndx, curr_batch in enumerate(val_dl):
+            for batch_ndx, curr_batch in batch_iter:
                 self.compute_batch_loss(batch_ndx, curr_batch, val_dl.batch_size, val_metrics_per_sample) 
                 # no need to store the loss as there's no update required 
             
@@ -206,10 +219,9 @@ class LunaTrainingApp():
         metrics_dict["acc/neg"] = (neg_correct / np.float32(neg_count)) * 100  
         metrics_dict["acc/pos"] = (pos_correct / np.float32(pos_count)) * 100  
 
-        print(f'E{epoch_ndx} {mode}  {metrics_dict["loss/all"]:.4f} overall loss {metrics_dict["acc/all"]:.1f}% accuracy')
-        print(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
-        print(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
-
+        log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/all"]:.4f} overall loss {metrics_dict["acc/all"]:.1f}% accuracy')
+        log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
+        log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
 
 
 # usual 'if-main' stanza

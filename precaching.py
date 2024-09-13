@@ -33,7 +33,7 @@ class LunaPrepCacheApp:
         self.args_list = parser.parse_args(sys_argv)
 
     def main(self):
-        print("Starting {}, {}".format(type(self).__name__, self.args_list))
+        log.info("Starting {}, {}".format(type(self).__name__, self.args_list))
 
         self.prep_dl = DataLoader(
             LunaDataset(DATASET_DIR_PATH, self.args_list.subsets_included,
@@ -42,6 +42,11 @@ class LunaPrepCacheApp:
             batch_size=self.args_list.batch_size,
             num_workers=self.args_list.num_workers,
         )
+        
+        batch_iter = enumerateWithEstimate(
+            self.prep_dl,
+            "Pre-Caching",
+            start_ndx=self.prep_dl.num_workers,)
 
-        for ndx,_ in enumerate(self.prep_dl):
-            print(f"Batch {ndx} out of {len(self.prep_dl)} -> Pre-Caching")
+        for _ in batch_iter:
+            pass
