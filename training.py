@@ -137,8 +137,7 @@ class LunaTrainingApp():
 
         for epoch_ndx in range(1, self.args_list.epochs + 1): 
 
-            log.info(f"epoch no.{epoch_ndx} of {self.args_list.epochs},
-             (train_dl/val_dl): {len(trian_dl)}/{len(val_dl)} -- with batch size of {self.args_list.batch_size} on {torch.cuda.device_count()} GPUs")
+            log.info(f"epoch no.{epoch_ndx} of {self.args_list.epochs} -- (train_dl/val_dl): {len(train_dl)}/{len(val_dl)} -- with batch size of {self.args_list.batch_size} on {torch.cuda.device_count()} GPUs")
 
             # training  
             train_metrics_per_sample = self.training_epoch(epoch_ndx, train_dl)  
@@ -181,7 +180,9 @@ class LunaTrainingApp():
             self.optimizer.step() # update parameters.
 
         # tensorboard settings 
-        self.totalTrainingSamples_count += len(train_dl.dataset)
+        self.totalTrainingSamples_count += len(train_dl.dataset) # using this as the x-axis at each epoch 
+        # instead of using epoch ndx as the x-axis value, we tend to use the number of batches as a more representative value 
+        # for the sake of comparison with less or more size batchs runs.
 
         return train_metrics_per_sample.to("cpu") # release space from the gpu 
 
@@ -242,8 +243,8 @@ class LunaTrainingApp():
 
         self.initTensorboardWriters() 
 
-        log.info(f"E{epoch_ndx}, {type(self)__name__}")
-
+        log.info(f"E{epoch_ndx}, {type(self).__name__}")
+        
         # non-nodule class
         neg_label_mask = metrics_per_sample[METRICS_LABEL_NDX] <= classification_thr   
         neg_pred_mask = metrics_per_sample[METRICS_PRED_NDX] <= classification_thr  
@@ -254,8 +255,13 @@ class LunaTrainingApp():
         neg_count = int(neg_label_mask.sum()) 
         pos_count = int(pos_label_mask.sum())
 
+        # ture negative and true postive respectively 
         neg_correct = int((neg_label_mask & neg_pred_mask).sum())
         pos_correct = int((pos_label_mask & pos_pred_mask).sum())
+
+        # false negative and false postive 
+        false_neg = pos_count - pos_correct  
+        false_pos = neg_count - neg_correct 
 
         metrics_dict = dict()
 
@@ -267,10 +273,20 @@ class LunaTrainingApp():
         metrics_dict["acc/all"] = ((neg_correct + pos_correct) / np.float32(metrics_per_sample.shape[1])) * 100  
         metrics_dict["acc/neg"] = (neg_correct / np.float32(neg_count)) * 100  
         metrics_dict["acc/pos"] = (pos_correct / np.float32(pos_count)) * 100  
+        # precision & recall 
+        metrics_dict["pr/precision"] = (pos_count / np.float32(pos_count + false_pos)) # don't flag as nodule unless you are sure 
+        metrics_dict["pr/recall"] = (pos_count / np.float32(pos_count + false_neg)) # don't miss out any nodules under any circumstances
+        # F1 score (condensing both precision and recall in one metric)
+        metrics_dict["pr/f1_score"] = \
+        2 * (metrics_dict["pr/precision"] * metrics_dict["pr/recall"]) / (metrics_dict["pr/precision"] + metrics_dict["pr/recall"])
 
-        log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/all"]:.4f} overall loss {metrics_dict["acc/all"]:.1f}% accuracy')
+
+        log.info(f'E{epoch_ndx} -- {mode} -- {metrics_dict["loss/all"]:.4f} overall loss -- {metrics_dict["acc/all"]:.1f}% accuracy 
+                 -- {metrics_dict["pr/precision"]:.4f} precision -- {metrics_dict["pr/recall"]:.4f} recall -- {metrics_dict["pr/f1_score"]:.4f} f1 score')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
+        
+
 
         # tensorboard reporting 
         writer = getattr(self, mode + '_writer') # SummaryWriter object 
@@ -293,14 +309,14 @@ class LunaTrainingApp():
         if neg_hist_mask.any():
             writer.add_histogram(
                 'is_neg',
-                metrics_per_sample[METRICS_PRED_NDX, negHist_mask],
+                metrics_per_sample[METRICS_PRED_NDX, neg_hist_mask],
                 self.totalTrainingSamples_count,
                 bins=bins,
             )
         if pos_hist_mask.any():
             writer.add_histogram(
                 'is_pos',
-                metrics_per_sample[METRICS_PRED_NDX, posHist_mask],
+                metrics_per_sample[METRICS_PRED_NDX, pos_hist_mask],
                 self.totalTrainingSamples_count,
                 bins=bins,
             )
