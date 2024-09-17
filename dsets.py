@@ -143,7 +143,7 @@ def get_ct_raw_candidates(series_uid ,xyz_center, irc_diameters):
 
 
 class LunaDataset(Dataset):
-    def __init__(self,dataset_dir_path:str, subsets_included:tuple = (0,1,2,3,4) ,val_stride:int = 0, val_set_bool:bool = None, series_uid:str = None, sortby_str:str='random'):
+    def __init__(self, dataset_dir_path:str, subsets_included:tuple = (0,1,2,3,4) ,val_stride:int = 0, val_set_bool:bool = None, ratio_int:int = 0 ,series_uid:str = None, sortby_str:str='random'):
         """
             Initialize training or validation dataset over the entire subjects of specific sujbect 
             by skipping over using a specified validation stride.
@@ -154,14 +154,17 @@ class LunaDataset(Dataset):
                 - val_stride: The stride used for skipping over nodules candidates to generate training and validation set. 
                     Meaning, if the stride value is '10', this can be interpreted as having training and validation 
                     split of ratio (1/10).
-                - val_set_bool: specifies which dataset to return. (training or validation)                 
+                - val_set_bool: specifies which dataset to return. (training or validation)
+                - ratio_int: The ratio between negative and postive samples in the dataset, for the sake of balancing.
+                - series_uid: extract the nodule candidates of specific subject.
+                - sortby_str: the ordering criteria used, among ('random', 'series_uid' and 'label_and_size' (default)).            
         """
-        
+        self.ratio_int = ratio_int 
         self.candidates_info_list = copy.copy(get_candidate_info_list(DATASET_DIR_PATH, required_on_desk=True,subsets_included = subsets_included)) # to isolate the cached list 
         
         if series_uid: # for specific subject 
-            self.candidates_info_list = [x for x in self.candidates_info_list if x.series_uid == series_uid]
-   
+            self.candidates_info_list = [x for x in self.candidates_info_list if x.series_uid == series_uid] 
+
         if val_set_bool: # return validation set only 
             assert val_stride > 0, val_stride
             self.candidates_info_list = self.candidates_info_list[::val_stride]
@@ -169,7 +172,7 @@ class LunaDataset(Dataset):
         elif val_stride > 0:
             del self.candidates_info_list[::val_stride] # remove this entries, return only the training set 
             assert self.candidates_info_list
-            
+    
         if sortby_str == 'random':
             random.shuffle(self.candidates_info_list)
         elif sortby_str == 'series_uid':
@@ -178,12 +181,39 @@ class LunaDataset(Dataset):
             pass
         else:
             raise Exception("Unknown sort: " + repr(sortby_str))
-    
-    def __len__(self):
-        return len(self.candidates_info_list)
+        
+
+        # separation of the positive and negative samples for the sake of balancing.
+        self.positive_list = [cand for cand in self.candidates_info_list if cand.isNodule_bool]
+        self.negative_list = [cand for cand in self.candidates_info_list if not cand.isNodule_bool]
+
+        log.info(f"{repr(self)}: {len(self.candidates_info_list)} {"validation" if val_set_bool else "training"} samples, {len(self.negative_list)} neg, {len(self.positive_list)} pos, {self.ratio_int if self.ratio_int else 'unbalanced'} ratio")
+   
+    def __len__(self): 
+        if self.ratio_int:
+            candidates_count = len(self.candidates_info_list)  # at least  
+            inbetwee_count = len(self.negative_list) // self.ratio_int 
+            if inbetwee_count >= len(self.positive_list):
+                candidates_count += (inbetwee_count - len(self.positive_list))
+            return candidates_count 
+        else:
+            return len(self.candidates_info_list) 
     
     def __getitem__(self, ind):
-        candidate_info = self.candidates_info_list[ind] 
+        # implementing alternating mechanism 
+        if self.ratio_int:
+            pos_ind = ind // (self.ratio_int + 1)   
+            if ind % (self.ratio_int + 1): # a non-zero reminder means this should be a negative sample
+                neg_ind = ind - 1 - pos_ind
+                neg_ind %= len(self.negative_list) # overflow results in wraparound
+                candidate_info = self.negative_list[neg_ind]
+            else:
+                pos_ind %= len(self.positive_list) # overflow results in wraparound
+                candidate_info = self.positive_list[pos_ind]            
+        else:
+            candidate_info = self.candidates_info_list[ind] 
+
+
         irc_width = IRC_tuple(32, 48, 48) # to make the size of the candidates constant over the training process 
         # ignore the diameter for the sake of unifying the extracted voxel array shape.
         
@@ -196,4 +226,10 @@ class LunaDataset(Dataset):
         label_tensor = torch.tensor([not candidate_info.isNodule_bool, candidate_info.isNodule_bool], dtype = torch.long) 
         
         return (candidate_tensor, label_tensor, candidate_info.series_uid, irc_center) 
+        
+    # custom shuffling for each epoch (you can neglect and use the pytorch optional argument)
+    def shuffle_samples(self):
+        if self.ratio_int:
+            random.shuffle(self.negative_list)
+            random.shuffle(self.positive_list)
         

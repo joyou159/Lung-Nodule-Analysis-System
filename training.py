@@ -70,6 +70,12 @@ class LunaTrainingApp():
             default='luna',
         )
 
+        parser.add_argument('--balanced',
+            help="Balance the training data to half positive, half negative.",
+            action='store_true',
+            default=False,
+            )
+
         self.args_list  = parser.parse_args(sys_argv)
 
         self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S') # to identify running times
@@ -107,7 +113,10 @@ class LunaTrainingApp():
 
 
     def init_data_loader(self, val_set_bool = False):
-        dataset = LunaDataset(DATASET_DIR_PATH, self.args_list.subsets_included, val_set_bool=val_set_bool, val_stride=10)
+        if val_set_bool: # no balancing for validation (real-world isn't balanced anyway)
+            dataset = LunaDataset(DATASET_DIR_PATH, self.args_list.subsets_included, val_set_bool=val_set_bool, val_stride=10)
+        else: # ratio_int = 1 (alternating)
+            dataset = LunaDataset(DATASET_DIR_PATH, self.args_list.subsets_included, val_set_bool=val_set_bool, val_stride=10, ratio_int=int(self.args_list.balanced))
         batch_size = self.args_list.batch_size
         if self.use_cuda:
             batch_size *= torch.cuda.device_count()  # each GPU has its own batch 
@@ -153,11 +162,9 @@ class LunaTrainingApp():
             self.val_writer.close()
 
 
-
-
     def training_epoch(self,epoch_ndx , train_dl):
         self.model.train() # set the model on the training mode 
-
+        train_dl.dataset.shuffle_samples() # shuffle the training data per epoch 
         # initialize empty metrics array per sample to keep track the performance per sample. This would give us a nice insights into 
         # when our model fails.
         train_metrics_per_sample = torch.zeros(
@@ -281,8 +288,7 @@ class LunaTrainingApp():
         2 * (metrics_dict["pr/precision"] * metrics_dict["pr/recall"]) / (metrics_dict["pr/precision"] + metrics_dict["pr/recall"])
 
 
-        log.info(f'E{epoch_ndx} -- {mode} -- {metrics_dict["loss/all"]:.4f} overall loss -- {metrics_dict["acc/all"]:.1f}% accuracy 
-                 -- {metrics_dict["pr/precision"]:.4f} precision -- {metrics_dict["pr/recall"]:.4f} recall -- {metrics_dict["pr/f1_score"]:.4f} f1 score')
+        log.info(f'E{epoch_ndx} -- {mode} -- {metrics_dict["loss/all"]:.4f} overall loss -- {metrics_dict["acc/all"]:.1f}% accuracy -- {metrics_dict["pr/precision"]:.4f} precision -- {metrics_dict["pr/recall"]:.4f} recall -- {metrics_dict["pr/f1_score"]:.4f} f1 score')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
         
