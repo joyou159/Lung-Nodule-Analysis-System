@@ -35,7 +35,7 @@ class LunaTrainingApp():
                             default = 8,
                             type=int)
 
-        parser.add_argument('--batch_size',
+        parser.add_argument('--batch-size',
             help='Batch size to use for training',
             default=32,
             type=int,
@@ -47,13 +47,13 @@ class LunaTrainingApp():
             type=int,
         )
         
-        parser.add_argument('--model_path',
+        parser.add_argument('--model-path',
             help='The path to the existing model',
             default=None,
             type=str,
         )
         
-        parser.add_argument('--subsets_included',
+        parser.add_argument('--subsets-included',
             help='The number of subsets included in the training process',
             default=(0,1,2,3,4),
             type=tuple,
@@ -63,13 +63,44 @@ class LunaTrainingApp():
             default='tensorboard-prefix',
             help="Data prefix to use for Tensorboard run.",
         )
-
+        # -------------------------- data augmentation arguments -----------------------------------
+        parser.add_argument('--augmented',
+            help="Augment the training data.",
+            action='store_true',
+            default=False,
+        )
+        parser.add_argument('--augment-flip',
+            help="Augment the training data by randomly flipping the data left-right, up-down, and front-back.",
+            action='store_true',
+            default=False,
+        )
+        parser.add_argument('--augment-offset',
+            help="Augment the training data by randomly offsetting the data slightly along the X and Y axes.",
+            action='store_true',
+            default=False,
+        )
+        parser.add_argument('--augment-scale',
+            help="Augment the training data by randomly increasing or decreasing the size of the candidate.",
+            action='store_true',
+            default=False,
+        )
+        parser.add_argument('--augment-rotate',
+            help="Augment the training data by randomly rotating the data around the head-foot axis.",
+            action='store_true',
+            default=False,
+        )
+        parser.add_argument('--augment-noise',
+            help="Augment the training data by randomly adding noise to the data.",
+            action='store_true',
+            default=False,
+        )
+        #-------------------------------------------------------------------------
         parser.add_argument('comment',
             help="Comment suffix for Tensorboard run.",
             nargs='?',
             default='luna',
         )
-
+        # --------------------- dataset balancing --------------------------------
         parser.add_argument('--balanced',
             help="Balance the training data to half positive, half negative.",
             action='store_true',
@@ -84,6 +115,20 @@ class LunaTrainingApp():
         self.train_writer = None
         self.val_writer = None
         self.totalTrainingSamples_count = 0
+
+
+        self.augmentation_dict = {}
+        if self.cli_args.augmented:
+            if self.cli_args.augment_flip:
+                self.augmentation_dict['flip'] = True
+            if self.cli_args.augment_offset:
+                self.augmentation_dict['offset'] = 0.1
+            if self.cli_args.augment_scale:
+                self.augmentation_dict['scale'] = 0.2
+            if self.cli_args.augment_rotate:
+                self.augmentation_dict['rotate'] = True
+            if self.cli_args.augment_noise: # this value must be chosen carefully, because it might result in a disasters 
+                self.augmentation_dict['noise'] = 25.0 # max density deviation is 20 (adjusted range used [-1000, 1000])
 
 
         self.use_cuda =  torch.cuda.is_available()
@@ -114,10 +159,20 @@ class LunaTrainingApp():
 
     def init_data_loader(self, val_set_bool = False):
         if val_set_bool: # no balancing for validation (real-world isn't balanced anyway)
-            dataset = LunaDataset(DATASET_DIR_PATH, self.args_list.subsets_included, val_set_bool=val_set_bool, val_stride=10)
+            dataset = LunaDataset(DATASET_DIR_PATH, 
+                                  self.args_list.subsets_included, 
+                                  val_set_bool=val_set_bool,
+                                  val_stride=10)
         else: # ratio_int = 1 (alternating)
-            dataset = LunaDataset(DATASET_DIR_PATH, self.args_list.subsets_included, val_set_bool=val_set_bool, val_stride=10, ratio_int=int(self.args_list.balanced))
+            dataset = LunaDataset(DATASET_DIR_PATH,
+                                 self.args_list.subsets_included,
+                                 val_set_bool=val_set_bool,
+                                 val_stride=10,
+                                 ratio_int=int(self.args_list.balanced), 
+                                 augmentation_dict = self.augmentation_dict)
+            
         batch_size = self.args_list.batch_size
+
         if self.use_cuda:
             batch_size *= torch.cuda.device_count()  # each GPU has its own batch 
         
@@ -155,8 +210,6 @@ class LunaTrainingApp():
             val_metrics_per_sample = self.validation_epoch(epoch_ndx, val_dl)
             self.log_metrics(epoch_ndx, "val", val_metrics_per_sample)
 
-
-
         if hasattr(self, 'train_writer'):
             self.train_writer.close()
             self.val_writer.close()
@@ -190,7 +243,6 @@ class LunaTrainingApp():
         self.totalTrainingSamples_count += len(train_dl.dataset) # using this as the x-axis at each epoch 
         # instead of using epoch ndx as the x-axis value, we tend to use the number of batches as a more representative value 
         # for the sake of comparison with less or more size batchs runs.
-
         return train_metrics_per_sample.to("cpu") # release space from the gpu 
 
 
@@ -207,7 +259,6 @@ class LunaTrainingApp():
             val_dl,
             f"E{epoch_ndx} Validation",
             start_ndx=val_dl.num_workers)
-        
 
             for batch_ndx, curr_batch in batch_iter:
                 self.compute_batch_loss(batch_ndx, curr_batch, val_dl.batch_size, val_metrics_per_sample) 
@@ -287,25 +338,22 @@ class LunaTrainingApp():
         metrics_dict["pr/f1_score"] = \
         2 * (metrics_dict["pr/precision"] * metrics_dict["pr/recall"]) / (metrics_dict["pr/precision"] + metrics_dict["pr/recall"])
 
-
         log.info(f'E{epoch_ndx} -- {mode} -- {metrics_dict["loss/all"]:.4f} overall loss -- {metrics_dict["acc/all"]:.1f}% accuracy -- {metrics_dict["pr/precision"]:.4f} precision -- {metrics_dict["pr/recall"]:.4f} recall -- {metrics_dict["pr/f1_score"]:.4f} f1 score')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
         
-
-
         # tensorboard reporting 
         writer = getattr(self, mode + '_writer') # SummaryWriter object 
 
         for key, value in metrics_dict.items():
-            writer.add_scalar(key, value, self.totalTrainingSamples_count) 
+            writer.add_scalar(key, value, self.totalTrainingSamples_count) # (tag, y_value, x_value)
 
         writer.add_pr_curve(
             'pr',
             metrics_per_sample[METRICS_LABEL_NDX],
             metrics_per_sample[METRICS_PRED_NDX],
             self.totalTrainingSamples_count,
-        ) 
+        )
 
         bins = [x/50.0 for x in range(51)]
 
@@ -326,8 +374,6 @@ class LunaTrainingApp():
                 self.totalTrainingSamples_count,
                 bins=bins,
             )
-
-
 
 # usual 'if-main' stanza
 if __name__ == "__main__":

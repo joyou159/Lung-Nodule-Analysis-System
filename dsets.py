@@ -7,8 +7,9 @@ import glob
 import SimpleITK as sitk
 from util import *
 from disk_caching import * 
-from torch.utils.data import Dataset 
 import torch 
+import torch.nn as nn 
+from torch.utils.data import Dataset 
 import copy 
 import random
 
@@ -73,6 +74,66 @@ def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_inc
     # so overall, the returned list has the candidates that are nodules indeed ordered descendingly by their sizes  
     # after that come the non-nodule candidates
     return candidate_list
+
+
+@functools.lru_cache(maxsize=1)  
+def get_ct_augmented_candidates(augmentation_dict, series_uid, center_xyz, width_irc, use_cache = True):
+    if use_cache:
+        ct_chunks, center_irc = get_ct_raw_candidates(series_uid, center_xyz, width_irc) 
+    else:
+        ct = get_ct(series_uid)
+        ct_chunks, center_irc = ct.get_raw_candidate_nodule(center_xyz, width_irc)
+
+    ct_tensor = torch.tensor(ct_chunks).unsqueeze(0).unsqueeze(0).to(torch.float32) # the (batch_size, channel, depth, heigth, width)  the expected shape of pytorch 
+
+    transformation_mat = torch.eye(4) # start off (just identity)
+
+    for i in range(3): # per axis 
+        if augmentation_dict['flip']:
+            if random.random() > 0.5: # flipping is a bit random 
+                transformation_mat[i:i] *= -1
+
+        if augmentation_dict['offset']:
+            offset_value = augmentation_dict['offset'] # must be limited [-1,1]
+            random_factor = random.random() * 2 - 1  # (std -> 2) and (mean -> -1)
+            transformation_mat[i:4] = offset_value * random_factor # the grid_sample will interpolate since the transition won't be in voxel steps 
+
+        if augmentation_dict['scale']:
+            scaling_value = augmentation_dict["scale"]
+            random_factor = (random.random() * 2 - 1)
+            transformation_mat[i:i] *= 1 + scaling_value * random_factor
+    
+    # rotation around z-axis (because the scale of this axis is completely different from those of x & y)
+    if augmentation_dict['rotate']:
+        angle_in_rad = random.random() * np.pi * 2
+        s = np.sin(angle_in_rad)
+        c = np.cos(angle_in_rad)
+
+        rotation_mat = torch.tensor(
+            [
+                [c, -s, 0, 0],
+                [s, c, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1]
+            ]
+        ) 
+                             
+        transformation_mat @= rotation_mat # accumulate the transformation matrices
+
+    affine_transform = nn.functional.affine_grid(transformation_mat[:3].unsqueeze(0).to(torch.float32), # transformation_mat[:3] coordinates only (not density value) 
+                                                 ct_tensor.size, align_corners=False) 
+    
+    augmented_chunk = nn.functional.grid_sample(ct_tensor, affine_transform, padding_mode="border", align_corners=False).to('cpu') 
+
+    
+    if augmentation_dict['noise' ]:
+        noise_t = torch.randn_like(augmented_chunk)
+        noise_t *= augmentation_dict['noise']
+        augmented_chunk += noise_t
+
+    
+    return augmented_chunk[0], center_irc # (discard the batch dim, just up to the channel dim)
+
 
 class CT: 
     def __init__(self, series_uid):
@@ -143,7 +204,14 @@ def get_ct_raw_candidates(series_uid ,xyz_center, irc_diameters):
 
 
 class LunaDataset(Dataset):
-    def __init__(self, dataset_dir_path:str, subsets_included:tuple = (0,1,2,3,4) ,val_stride:int = 0, val_set_bool:bool = None, ratio_int:int = 0 ,series_uid:str = None, sortby_str:str='random'):
+    def __init__(self, dataset_dir_path:str,
+                subsets_included:tuple = (0,1,2,3,4) ,
+                val_stride:int = 0,
+                val_set_bool:bool = None, 
+                ratio_int:int = 0 ,
+                series_uid:str = None,
+                sortby_str:str='random',
+                augmentation_dict = None):
         """
             Initialize training or validation dataset over the entire subjects of specific sujbect 
             by skipping over using a specified validation stride.
@@ -160,6 +228,7 @@ class LunaDataset(Dataset):
                 - sortby_str: the ordering criteria used, among ('random', 'series_uid' and 'label_and_size' (default)).            
         """
         self.ratio_int = ratio_int 
+        self.augmentation_dict = augmentation_dict
         self.candidates_info_list = copy.copy(get_candidate_info_list(DATASET_DIR_PATH, required_on_desk=True,subsets_included = subsets_included)) # to isolate the cached list 
         
         if series_uid: # for specific subject 
@@ -187,7 +256,7 @@ class LunaDataset(Dataset):
         self.positive_list = [cand for cand in self.candidates_info_list if cand.isNodule_bool]
         self.negative_list = [cand for cand in self.candidates_info_list if not cand.isNodule_bool]
 
-        log.info(f"{repr(self)}: {len(self.candidates_info_list)} {"validation" if val_set_bool else "training"} samples, {len(self.negative_list)} neg, {len(self.positive_list)} pos, {self.ratio_int if self.ratio_int else 'unbalanced'} ratio")
+        log.info(f'{repr(self)}: {len(self.candidates_info_list)} {"validation" if val_set_bool else "training"} samples, {len(self.negative_list)} neg, {len(self.positive_list)} pos, {self.ratio_int if self.ratio_int else 'unbalanced'} ratio')
    
     def __len__(self): 
         if self.ratio_int:
@@ -200,7 +269,7 @@ class LunaDataset(Dataset):
             return len(self.candidates_info_list) 
     
     def __getitem__(self, ind):
-        # implementing alternating mechanism 
+        # implementing alternating mechanism to balance the dataset
         if self.ratio_int:
             pos_ind = ind // (self.ratio_int + 1)   
             if ind % (self.ratio_int + 1): # a non-zero reminder means this should be a negative sample
@@ -216,13 +285,16 @@ class LunaDataset(Dataset):
 
         irc_width = IRC_tuple(32, 48, 48) # to make the size of the candidates constant over the training process 
         # ignore the diameter for the sake of unifying the extracted voxel array shape.
-        
-        candidate_arr, irc_center = get_ct_raw_candidates(candidate_info.series_uid ,candidate_info.center_xyz, irc_width)
-        
-        candidate_tensor = torch.from_numpy(candidate_arr)
-        candidate_tensor = candidate_tensor.to(torch.float32)
-        candidate_tensor = candidate_tensor.unsqueeze(0) # for the batch-dimension 
-        
+
+        if self.augmentation_dict:
+            candidate_tensor, irc_center = get_ct_augmented_candidates(self.augmentation_dict, candidate_info.series_uid, candidate_info.center_xyz, irc_width)
+        else: 
+            candidate_arr, irc_center = get_ct_raw_candidates(candidate_info.series_uid ,candidate_info.center_xyz, irc_width)
+            candidate_tensor = torch.from_numpy(candidate_arr)
+            candidate_tensor = candidate_tensor.to(torch.float32)
+            candidate_tensor = candidate_tensor.unsqueeze(0) # for the batch-dimension 
+            
+    
         label_tensor = torch.tensor([not candidate_info.isNodule_bool, candidate_info.isNodule_bool], dtype = torch.long) 
         
         return (candidate_tensor, label_tensor, candidate_info.series_uid, irc_center) 
@@ -233,3 +305,7 @@ class LunaDataset(Dataset):
             random.shuffle(self.negative_list)
             random.shuffle(self.positive_list)
         
+
+
+
+

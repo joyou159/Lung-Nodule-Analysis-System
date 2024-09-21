@@ -40,6 +40,7 @@ class LunaModel(nn.Module):
         # 32 -> 16 -> 8 -> 4 -> 2  (depth)
         self.head_linear = nn.Linear(2 * 3 * 3 * 8 * conv_channels, 2) 
         self.softmax_head = nn.Softmax(dim = 1) 
+        self.dropout = nn.Dropout(0.3)
 
 
     def _init_weights(self):
@@ -63,7 +64,8 @@ class LunaModel(nn.Module):
             block_out.size(0), # batch_size
             -1
         )
-        linear_output = self.head_linear(conv_flatten)
+        dropout_out = self.dropout(conv_flatten) 
+        linear_output = self.head_linear(dropout_out)
         return linear_output, self.softmax_head(linear_output)
             
 
