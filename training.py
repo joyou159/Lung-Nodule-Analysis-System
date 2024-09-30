@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from util import *
 from logconfig import *
 from dsets import *
-from model import LunaModel 
+from LunaModel import LunaModel 
 from torch.utils.tensorboard import SummaryWriter
 
 

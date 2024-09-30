@@ -1,4 +1,3 @@
-import torch 
 import torch.nn as nn
 import numpy as np 
 
@@ -68,6 +67,5 @@ class LunaModel(nn.Module):
         linear_output = self.head_linear(dropout_out)
         return linear_output, self.softmax_head(linear_output)
             
-
 
 

@@ -1,8 +1,7 @@
 import torch 
 import torch.nn as nn 
 import torch.nn.functional as F
-
-
+from math import sqrt
 
 class UNet(nn.Module):
     def __init__(self, in_channel,
@@ -113,3 +112,41 @@ class UNetUpBlock(nn.Module):
         out = torch.cat([up, crop1], 1)
         out = self.conv_block(out)
         return out
+    
+
+class UNetWrapper(nn.Module):
+    def __init__(self, **kwargs):
+        super(UNetWrapper, self).__init__()
+        self.normalize = nn.BatchNorm2d(**kwargs["in_channels"])
+        self.unet = UNet(**kwargs)
+        self.final_layer = nn.Sigmoid()
+    
+        self._init_weights()
+
+
+    def _init_weights(self):
+        layer_set = {
+            nn.Conv2d,
+            nn.Conv3d,
+            nn.ConvTranspose2d,
+            nn.ConvTranspose3d,
+            nn.Linear,
+        }
+        for m in self.modules():
+            if type(m) in layer_set:
+                nn.init.kaiming_normal_(
+                    m.weight.data, mode='fan_out', nonlinearity='relu', a=0
+                )
+                if m.bias is not None:
+                    _, fan_out = \
+                        nn.init._calculate_fan_in_and_fan_out(m.weight.data)
+                    bound = 1 / sqrt(fan_out)
+                    nn.init.normal_(m.bias, -bound, bound)
+
+
+    def forward(self, input_batch):
+        bn_outoput = self.normalize(input_batch)
+        un_output = self.unet(bn_outoput)
+        output = self.final_layer(un_output)
+        return output
+
