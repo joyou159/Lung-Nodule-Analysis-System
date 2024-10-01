@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from util import CandidateInfoTuple, IRC_tuple
-from dsets import  get_ct
+from classifier_dsets import  get_ct
 
 
 def visualize_candidate(ct_candidate): 

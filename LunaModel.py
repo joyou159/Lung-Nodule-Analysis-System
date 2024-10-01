@@ -1,26 +1,6 @@
 import torch.nn as nn
 import numpy as np 
 
-
-class LunaBlock(nn.Module):
-    def __init__(self, in_channels, conv_channels):
-        super(LunaBlock, self).__init__()
-        self.conv1 = nn.Conv3d(in_channels, conv_channels, kernel_size=3, padding=1, bias=True)
-        self.relu1 = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv3d(conv_channels, conv_channels, kernel_size=3, padding=1, bias=True)
-        self.relu2 = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool3d(kernel_size=2,stride=2)
-
-    def forward(self, input_batch):
-        block_out = self.conv1(input_batch)
-        block_out = self.relu1(block_out)
-        block_out = self.conv2(block_out)
-        block_out = self.relu2(block_out)
-        
-        return self.maxpool(block_out)
-
-
-
 class LunaModel(nn.Module):
     def __init__(self,in_channels = 1, conv_channels= 8): 
         super(LunaModel, self).__init__()
@@ -68,4 +48,21 @@ class LunaModel(nn.Module):
         return linear_output, self.softmax_head(linear_output)
             
 
+
+class LunaBlock(nn.Module):
+    def __init__(self, in_channels, conv_channels):
+        super(LunaBlock, self).__init__()
+        self.conv1 = nn.Conv3d(in_channels, conv_channels, kernel_size=3, padding=1, bias=True)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv3d(conv_channels, conv_channels, kernel_size=3, padding=1, bias=True)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool3d(kernel_size=2,stride=2)
+
+    def forward(self, input_batch):
+        block_out = self.conv1(input_batch)
+        block_out = self.relu1(block_out)
+        block_out = self.conv2(block_out)
+        block_out = self.relu2(block_out)
+        
+        return self.maxpool(block_out)
 
