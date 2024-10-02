@@ -134,12 +134,14 @@ def get_unified_candidate_info_list(dataset_dir_path, required_on_desk=True, sub
     """
     
     mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd") # extract all 
-    filtered_mhd_list = [mhd for mhd in mhd_list if any(f"subset{id}" in mhd for id in subsets_included)]
-    uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list} # the unique series_uids for further filtration
-    
+    if required_on_desk:
+        filtered_mhd_list = [mhd for mhd in mhd_list if any(f"subset{id}" in mhd for id in subsets_included)]
+        uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list} # the unique series_uids for further filtration
+        mhd_list = uids_present_on_disk
+
     annotation_info = dict()
     
-    with open(os.path.join(dataset_dir_path, "annotations.csv")) as f:
+    with open(os.path.join(dataset_dir_path, "annotations.csv"), "r") as f:
         for row in list(csv.reader(f))[1:]: # neglect the first indexing column 
             series_uid = row[0]
             nodule_center = np.array([float(x) for x in row[1:4]]) # x, y, z 
@@ -152,7 +154,7 @@ def get_unified_candidate_info_list(dataset_dir_path, required_on_desk=True, sub
         for row in list(csv.reader(f))[1:]:
             series_uid = row[0]
             
-            if series_uid not in uids_present_on_disk and required_on_desk: 
+            if series_uid not in mhd_list:
                 continue # meaning that subject doesn't exist on the desk 
                 
             nodule_flag = bool(int(row[4])) # is it an actual nodule?
