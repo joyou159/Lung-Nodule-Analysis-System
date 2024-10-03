@@ -1,102 +1,89 @@
-import functools
-import glob
-import os
-import csv
-from collections import namedtuple
+import torch
+from torch.utils.data import Dataset
+from CT import getCtSampleSize, get_ct
+from logconfig import *
+from segment_dset_utils import get_candidate_info_dict, get_candidate_info_list
 
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
-CandidateSegInfo = namedtuple('CandidateSegInfo', 'is_nodule, hasAnnotation_bool, isMal_bool, diameter_mm, series_uid, center_xyz')
+class Luna2DSegmentation(Dataset):
+    def __init__(self, dataset_dir_path:str,
+                subsets_included:tuple = (0,1,2,3,4) ,val_stride = 0, val_set_bool = None, series_uid= None, context_slices = 3, full_ct=True):
+        super(Luna2DSegmentation, self).__init__()
+        """
+        Base class for  training or validation dataset over the entire subjects of specific sujbect 
+        by skipping over using a specified validation stride.
+        
+        Parameters:
+            - dataset_dir_path: The path to the dataset directory.
+            - subsets_included: The subsets of the dataset to be included. 
+            - val_stride: The stride used for skipping over subjects ct to generate training and validation set. 
+                Meaning, if the stride value is '10', this can be interpreted as having training and validation 
+                split of ratio (1/10).
+            - val_set_bool: specifies which dataset to return. (training or validation)
+            - series_uid: extract the nodule candidates of specific subject.
+            - context_slice: the number of slices above and below the current slice at the current slice taken into account 
+                during segmentation. 
+            - full_ct: divide based on just positive indicies in the ct volume or the whole volume.
+        """
+        self.context_slices = context_slices
+        self.full_ct = full_ct
 
+        if series_uid:
+            self.subjects_list = [series_uid]
+        else:
+            self.subjects_list = sorted(get_candidate_info_dict(dataset_dir_path, subsets_included = subsets_included, 
+                                                                required_on_desk=True).keys())
+            
+        if val_set_bool: # return validation set only 
+            assert val_stride > 0, val_stride
+            self.subjects_list = self.subjects_list[::val_stride]
+            assert self.subjects_list
+        elif val_stride > 0:
+            del self.subjects_list[::val_stride] # remove this entries, return only the training set 
+            assert self.subjects_list 
+        
+        self.sample_list = list()
+        for series_uid in self.subjects_list:
+            num_indicies, positive_slices = getCtSampleSize(series_uid)
 
-@functools.lru_cache(maxsize=1)  # caches the results of function call, if it have been called with the same argument. 
-def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
+            if self.full_ct: # get the whole volume slices
+                self.sample_list += [(series_uid, slice_ind) 
+                                     for slice_ind in range(num_indicies)]  
+            else:
+                self.sample_list += [(series_uid, slice_ind) 
+                                     for slice_ind in positive_slices]
+        
+        # uploading individual candidates from each subject included in the subject list 
+        self.candidate_list = get_candidate_info_list(dataset_dir_path, True, subsets_included)
+        self.candidate_list = [sub for sub in self.candidate_list if sub.series_uid in self.subjects_list]
 
-    mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd") # extract all 
-    if required_on_desk:
-        filtered_mhd_list = [mhd for mhd in mhd_list if any(f"subset{id}" in mhd for id in subsets_included)]
-        uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list} # the unique series_uids for further filtration
-        mhd_list = uids_present_on_disk
+        self.pos_list = [sub for sub in self.candidate_list if sub.is_nodule] 
 
-    candidates_list = list()
+        log.info("{!r}: {} {} series, {} slices {} nodules".format(self, len(self.subjects_list), 
+                                             {None: "general", True: "validation", False: "training"}[val_set_bool],
+                                             len(self.sample_list),
+                                             len(self.pos_list)))
 
-    # extract the nodules (whether they are malignant or benign) that has annotations data without repetition
-    with open(os.path.join(dataset_dir_path, "annotations_for_segmentation.csv"), "r") as f:
-        for row in list(csv.reader(f))[1:]: 
-            series_uid = row[0]
-            if series_uid not in mhd_list:
-                continue
-
-            center_xyz = tuple([float(x) for x in row[1:4]])
-            diameter = float(row[4])
-            is_malignant = {"False": False, "True": True}[row[5]] 
-
-
-            candidates_list.append(
-                CandidateSegInfo(
-                    True, # it's a nodule 
-                    True, # has annotations data already (meaning that there are some nodules that have no annotation data)
-                    is_malignant,
-                    diameter,
-                    series_uid, 
-                    center_xyz
-                )
-            )
+    def __len__(self):
+        return len(self.sample_list)
     
-    # extract non-nodule (negative examples so that the U-net model learns to ignore them)
-    with open(os.path.join(dataset_dir_path, "annotations.csv"), "r") as f:
-        for row in list(csv.reader(f))[1:]: 
-            series_uid = row[0]
-
-            if series_uid not in mhd_list:
-                continue
-
-            is_nodule = bool(int(row[4]))
-            center_xyz = tuple([float(x) for x in row[1:4]])
-
-            if not is_nodule: # make sure they 
-                candidates_list.append(
-                    CandidateSegInfo(
-                        False,   
-                        False,
-                        False,
-                        diameter,
-                        series_uid, 
-                        center_xyz
-                    )
-                )
-
-
-
-def find_radius(ci, cr, cc, axis, hu_arr, threshold_hu):
-    """
-    For mask generation 
-    """
-    radius = 2
-    try:
-        while True:
-            # Check based on the axis
-            if axis == 'index':
-                if hu_arr[ci + radius, cr, cc] <= threshold_hu or hu_arr[ci - radius, cr, cc] <= threshold_hu:
-                    break
-            elif axis == 'row':
-                if hu_arr[ci, cr + radius, cc] <= threshold_hu or hu_arr[ci, cr - radius, cc] <= threshold_hu:
-                    break
-            elif axis == 'col':
-                if hu_arr[ci, cr, cc + radius] <= threshold_hu or hu_arr[ci, cr, cc - radius] <= threshold_hu:
-                    break
-            # Increment the radius if the condition is met
-            radius += 1
-    except IndexError:
-        radius -= 1  # Fix the last incorrect incrementation due to out-of-bounds access
-    return radius
-
-@functools.lru_cache(1)
-def get_candidate_info_dict(dataset_dir_path, required_on_desk=True, subsets_included = (0,)):
-    candidate_list = get_candidate_info_list(dataset_dir_path, required_on_desk, subsets_included)
-    candidate_dict = dict()
-
-    for candidate_tuple in candidate_list:
-        candidate_dict.setdefault(candidate_tuple.series_uid, []).append(candidate_tuple)
+    def __getitem__(self, index):
+        series_uid, slice_ind = self.sample_list[index % len(self.sample_list)] # circulation 
+        return self.slice_extract_with_context(series_uid, slice_ind)
     
-    return candidate_dict
+    def slice_extract_with_context(self, series_uid, slice_ind):
+        ct = get_ct(series_uid, usage = "segment")
+        ct_t = torch.zeros((self.context_slices * 2 + 1, 512, 512)) # taking self.context_slices above and below the target slice for context learning.
 
+        start_ind = slice_ind - self.context_slices
+        end_ind = slice_ind + self.context_slices + 1
+        for i, context_idx in enumerate(range(start_ind, end_ind)):
+            context_idx = max(context_idx, 0)
+            context_idx = min(context_idx, ct.hu_arr.shape[0] - 1)
+            ct_t[i] = torch.from_numpy(ct.hu_arr[context_idx])
+        
+        labels = torch.from_numpy(ct.positive_masks[slice_ind]).unsqueeze(0) # for batching
+        return ct_t, labels, series_uid, slice_ind
+    
