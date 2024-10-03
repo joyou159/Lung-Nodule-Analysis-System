@@ -92,12 +92,12 @@ class CT:
 
             slicing_list.append(slice(start_ind, end_ind))
         
-        ct_chunks = self.hu_arr[tuple(slicing_list)]
+        ct_chunk = self.hu_arr[tuple(slicing_list)]
         if self.mode == "segment":
-            pos_chunks = self.positive_masks[tuple(slicing_list)]
-            return pos_chunks, ct_chunks, icr_center 
+            pos_chunk = self.positive_masks[tuple(slicing_list)]
+            return pos_chunk, ct_chunk, icr_center 
         else:
-            return ct_chunks, icr_center
+            return ct_chunk, icr_center
 
 
 
@@ -114,8 +114,20 @@ raw_cache = getCache("cache_candidates")
 def get_ct_raw_candidates(series_uid ,xyz_center, irc_diameters, usage = 'classifier'):
     ct = get_ct(series_uid, usage)
     if usage == 'segment':
-        pos_chunks, ct_chunks, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
-        return pos_chunks, ct_chunks, icr_center
+        pos_chunk, ct_chunk, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
+        return pos_chunk, ct_chunk, icr_center
     else:
-        ct_chunks, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
-        return ct_chunks, icr_center
+        ct_chunk, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
+        return ct_chunk, icr_center
+    
+
+# this way we would save the returned value from this function call 
+# (later when i call the same function with the same parameter, the function would read it off the disk) 
+@raw_cache.memoize(typed = True)
+def getCtSampleSize(series_uid):
+    ct = CT(series_uid, usage = "segment")
+    return int(ct.hu_arr.shape[0]), ct.positive_indices
+    # since the number of channels is different between CT scans
+
+
+
