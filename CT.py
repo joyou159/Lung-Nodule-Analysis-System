@@ -4,7 +4,7 @@ import functools
 import SimpleITK as sitk
 from util import *
 from disk_caching import * 
-from segment_dsets import find_radius, get_candidate_info_dict
+from segment_dset import find_radius, get_candidate_info_dict
 
 
 
