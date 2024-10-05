@@ -1,4 +1,6 @@
 from collections import namedtuple
+import torch 
+import random
 import functools
 from util import *
 from disk_caching import * 
