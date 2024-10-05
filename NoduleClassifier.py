@@ -1,16 +1,16 @@
 import torch.nn as nn
 import numpy as np 
 
-class LunaModel(nn.Module):
+class NoduleClassifier(nn.Module):
     def __init__(self,in_channels = 1, conv_channels= 8): 
-        super(LunaModel, self).__init__()
+        super(NoduleClassifier, self).__init__()
 
         self.tail_layer = nn.BatchNorm3d(in_channels)
 
-        self.block_1 = LunaBlock(in_channels, conv_channels)
-        self.block_2 = LunaBlock(conv_channels, conv_channels * 2)
-        self.block_3 = LunaBlock(conv_channels * 2, conv_channels * 4)
-        self.block_4 = LunaBlock(conv_channels * 4, conv_channels * 8)  
+        self.block_1 = NoduleBlock(in_channels, conv_channels)
+        self.block_2 = NoduleBlock(conv_channels, conv_channels * 2)
+        self.block_3 = NoduleBlock(conv_channels * 2, conv_channels * 4)
+        self.block_4 = NoduleBlock(conv_channels * 4, conv_channels * 8)  
         # note how progressively the number of channels increase 
 
         # Remember that the input shape is (32, 48, 48) (depth, height, width)
@@ -49,9 +49,9 @@ class LunaModel(nn.Module):
             
 
 
-class LunaBlock(nn.Module):
+class NoduleBlock(nn.Module):
     def __init__(self, in_channels, conv_channels):
-        super(LunaBlock, self).__init__()
+        super(NoduleBlock, self).__init__()
         self.conv1 = nn.Conv3d(in_channels, conv_channels, kernel_size=3, padding=1, bias=True)
         self.relu1 = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv3d(conv_channels, conv_channels, kernel_size=3, padding=1, bias=True)

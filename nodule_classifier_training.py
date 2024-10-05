@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from util import *
 from logconfig import *
 from classifier_dset import *
-from NoduleClassifier import NoduleClassifier
+from NoduleClassifier import LunaModel 
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -24,7 +24,7 @@ METRICS_SIZE = 3
 # parse command-line arguments, have a full-featured --help command, and be easy to
 # run in a wide variety of environments.
 
-class LunaTrainingApp():
+class NoduleClassifierTrainingApp():
     def __init__(self, sys_argv = None):
         if sys_argv is None: # if the caller doesn't provide parameters, we get them from the command line.
              sys_argv = sys.argv[1:]
@@ -140,7 +140,7 @@ class LunaTrainingApp():
 
 
     def init_model(self, model_path = None):
-        model = NoduleClassifier()
+        model = LunaModel()
         if model_path is not None:
             model.load_state_dict(torch.load(model_path))
         if self.use_cuda:
