@@ -121,8 +121,8 @@ class SegmentationAugmentation(nn.Module):
 
     def forward(self, input_batch, mask_batch):
         """
-        input_batch: batch of 2D images of spatial shape (height, width)
-        mask_batch: batch of 2D images of spatial shape (height, width)
+        input_batch: batch of size (7, height, width)
+        mask_batch: batch of size (1, height, width)
 
         """
         transform_mat = self.build_2d_transformation_matrix()

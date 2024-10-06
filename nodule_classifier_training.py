@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from util import *
 from logconfig import *
 from classifier_dset import *
-from NoduleClassifier import LunaModel 
+from NoduleClassifier import NoduleClassifier 
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -118,16 +118,16 @@ class NoduleClassifierTrainingApp():
 
 
         self.augmentation_dict = {}
-        if self.cli_args.augmented:
-            if self.cli_args.augment_flip:
+        if self.args_list.augmented:
+            if self.args_list.augment_flip:
                 self.augmentation_dict['flip'] = True
-            if self.cli_args.augment_offset:
+            if self.args_list.augment_offset:
                 self.augmentation_dict['offset'] = 0.1
-            if self.cli_args.augment_scale:
+            if self.args_list.augment_scale:
                 self.augmentation_dict['scale'] = 0.2
-            if self.cli_args.augment_rotate:
+            if self.args_list.augment_rotate:
                 self.augmentation_dict['rotate'] = True
-            if self.cli_args.augment_noise: # this value must be chosen carefully, because it might result in a disasters 
+            if self.args_list.augment_noise: # this value must be chosen carefully, because it might result in a disasters 
                 self.augmentation_dict['noise'] = 25.0 # max density deviation is 20 (adjusted range used [-1000, 1000])
 
 
@@ -140,7 +140,7 @@ class NoduleClassifierTrainingApp():
 
 
     def init_model(self, model_path = None):
-        model = LunaModel()
+        model = NoduleClassifier()
         if model_path is not None:
             model.load_state_dict(torch.load(model_path))
         if self.use_cuda:
@@ -154,7 +154,7 @@ class NoduleClassifierTrainingApp():
     
 
     def init_optimizer(self):
-        return torch.optim.Adam(self.model.parameters(), lr=0.001) # tunable 
+        return torch.optim.Adam(self.model.parameters())
 
 
     def init_data_loader(self, val_set_bool = False):
@@ -218,6 +218,7 @@ class NoduleClassifierTrainingApp():
     def training_epoch(self,epoch_ndx , train_dl):
         self.model.train() # set the model on the training mode 
         train_dl.dataset.shuffle_samples() # shuffle the training data per epoch 
+
         # initialize empty metrics array per sample to keep track the performance per sample. This would give us a nice insights into 
         # when our model fails.
         train_metrics_per_sample = torch.zeros(
@@ -234,15 +235,16 @@ class NoduleClassifierTrainingApp():
         for batch_ndx, curr_batch in batch_iter:
             self.optimizer.zero_grad() # remove leftover gradient tensors
             # custom loss function to handle the separation between training samples per batch. 
-            loss_val = self.compute_batch_loss(batch_ndx, curr_batch, train_dl.batch_size, train_metrics_per_sample)
+            loss = self.compute_batch_loss(batch_ndx, curr_batch, train_dl.batch_size, train_metrics_per_sample)
 
-            loss_val.backward() # compute gradients. 
+            loss.backward() # compute gradients. 
             self.optimizer.step() # update parameters.
 
-        # tensorboard settings 
+
         self.totalTrainingSamples_count += len(train_dl.dataset) # using this as the x-axis at each epoch 
         # instead of using epoch ndx as the x-axis value, we tend to use the number of batches as a more representative value 
         # for the sake of comparison with less or more size batchs runs.
+
         return train_metrics_per_sample.to("cpu") # release space from the gpu 
 
 
@@ -267,7 +269,7 @@ class NoduleClassifierTrainingApp():
         return val_metrics_per_sample.to("cpu")
 
 
-    def compute_batch_loss(self, batch_ndx, curr_batch, batch_size, train_metrics_per_sample):
+    def compute_batch_loss(self, batch_ndx, curr_batch, batch_size, metrics_per_sample):
         """ Computes the loss over a batch of samples. By recording the label, prediction, and loss for each and every training 
             as well as validation sample, we have a wealth of detailed information we can use to investigate
             the behavior of our model.
@@ -289,10 +291,10 @@ class NoduleClassifierTrainingApp():
         start_ndx = batch_ndx * batch_size
         end_ndx = start_ndx + labels.size(0) 
 
-        train_metrics_per_sample[METRICS_LABEL_NDX, start_ndx:end_ndx] = labels[:,1].detach() # detach from the computaitonal graph 
+        metrics_per_sample[METRICS_LABEL_NDX, start_ndx:end_ndx] = labels[:,1].detach() # detach from the computaitonal graph 
         # phrased differently, don't keep gradient. 
-        train_metrics_per_sample[METRICS_PRED_NDX, start_ndx:end_ndx] = probs[:,1].detach()
-        train_metrics_per_sample[METRICS_LOSS_NDX, start_ndx:end_ndx] = loss_val.detach()
+        metrics_per_sample[METRICS_PRED_NDX, start_ndx:end_ndx] = probs[:,1].detach()
+        metrics_per_sample[METRICS_LOSS_NDX, start_ndx:end_ndx] = loss_val.detach()
 
         return loss_val.mean() # recombine the loss of each individual sample to get the overall loss of the batch
 
@@ -377,4 +379,4 @@ class NoduleClassifierTrainingApp():
 
 # usual 'if-main' stanza
 if __name__ == "__main__":
-    LunaTrainingApp().main()
+    NoduleClassifierTrainingApp().main()

@@ -9,10 +9,10 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 # base class (used for validation)
-class Luna2DSegmentation(Dataset):
+class SegmentationBase(Dataset):
     def __init__(self, dataset_dir_path:str,
-                subsets_included:tuple = (0,1,2,3,4) ,val_stride = 0, val_set_bool = None, series_uid= None, context_slices = 3, full_ct=True):
-        super(Luna2DSegmentation, self).__init__()
+                subsets_included:tuple = (0,1,2,3,4) ,val_stride = 0, val_set_bool = None, series_uid= None, context_slices = 3, full_ct=False):
+        super(SegmentationBase, self).__init__()
         """
         Base class for  training or validation dataset over the entire subjects of specific sujbect 
         by skipping over using a specified validation stride.
@@ -79,17 +79,17 @@ class Luna2DSegmentation(Dataset):
     
     def slice_extract_with_context(self, series_uid, slice_ind):
         ct = get_ct(series_uid, usage = "segment")
-        ct_t = torch.zeros((self.context_volume, 512, 512)) # taking self.context_slices above and below the target slice for context learning.
+        ct_context = torch.zeros((self.context_volume, 512, 512)) # taking self.context_slices above and below the target slice for context learning.
 
         start_ind = slice_ind - self.context_slices
         end_ind = slice_ind + self.context_slices + 1
         for i, context_idx in enumerate(range(start_ind, end_ind)):
             context_idx = max(context_idx, 0)
             context_idx = min(context_idx, ct.hu_arr.shape[0] - 1)
-            ct_t[i] = torch.from_numpy(ct.hu_arr[context_idx])
+            ct_context[i] = torch.from_numpy(ct.hu_arr[context_idx])
         
         mask = torch.from_numpy(ct.positive_masks[slice_ind]).unsqueeze(0) # for batching
-        return ct_t, mask # return ct slice with context and the corresponding mask 
+        return ct_context, mask, series_uid, slice_ind # last 2 returned values are used for logging purposes. 
     
 
 """
@@ -99,8 +99,8 @@ around the candidate positve sample. This would help in solving the problem of d
 issues would result in high false positive rates during validation.
 
 """
-class TrainingSegmentDataset(Luna2DSegmentation):
-    def __init__(self, ratio_int, *args, **kwargs):
+class TrainingSegmentDataset(SegmentationBase):
+    def __init__(self, ratio_int = 1, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.ratio_int = ratio_int # the alternation rate between the two classes 
@@ -142,8 +142,7 @@ class TrainingSegmentDataset(Luna2DSegmentation):
     
         
     def shuffle_samples(self):
-        random.shuffle(self.candidate_list)
-        random.shuffle(self.pos_list)
+        random.shuffle(self.pos_list) # during training we will just use positive slices 
 
 
     

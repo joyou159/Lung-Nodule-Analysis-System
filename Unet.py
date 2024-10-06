@@ -23,7 +23,7 @@ class UNet(nn.Module):
             - channel expansion (number of filters of first conv is 2**(filters_power)).
             - padding: specify whether you want the input spatial dim is as the output or not. 
             - batch_norm: specify the possibility of applying batch normalization after network layers.
-            - up_mode: "learnable" -> deconvoluation  or "non-learnable" -> bilinear upsampling. 
+            - up_mode: "learnable" (upconv) -> deconvoluation or "non-learnable" (upsample) -> bilinear upsampling. 
         """
         super(UNet, self).__init__()
         assert up_mode.lower() in ("learnable", "non-learnable")
