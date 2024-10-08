@@ -22,8 +22,8 @@ class CT:
         self.mode = usage
 
         if usage == "segment":
-            self.candidate_info_list = get_candidate_info_dict(DATASET_DIR_PATH)[series_uid] # all the candidate nodules of that subject
-            self.positive_candidates = [candidate for candidate in self.candidate_info_list if candidate.isNodule_bool] 
+            self.candidate_info_list = get_candidate_info_dict(DATASET_DIR_PATH,subsets_included=(0,))[self.series_uid] # all the candidate nodules of that subject
+            self.positive_candidates = [candidate for candidate in self.candidate_info_list if candidate.is_nodule] 
             self.positive_masks = self.build_annotation_mask(self.positive_candidates)
             # this line of code extracts the indices of the CT volume which has at least one voxel assigned value 1
             self.positive_indices = (self.positive_masks.sum(axis=(1,2)).nonzero()[0].tolist())
@@ -92,12 +92,12 @@ class CT:
 
             slicing_list.append(slice(start_ind, end_ind))
         
-        ct_chunk = self.hu_arr[tuple(slicing_list)]
+        ct_chunks = self.hu_arr[tuple(slicing_list)]
         if self.mode == "segment":
-            pos_chunk = self.positive_masks[tuple(slicing_list)]
-            return pos_chunk, ct_chunk, icr_center 
+            pos_chunks = self.positive_masks[tuple(slicing_list)]
+            return pos_chunks, ct_chunks, icr_center 
         else:
-            return ct_chunk, icr_center
+            return ct_chunks, icr_center
 
 
 

@@ -88,7 +88,7 @@ class SegmentationBase(Dataset):
             context_idx = min(context_idx, ct.hu_arr.shape[0] - 1)
             ct_context[i] = torch.from_numpy(ct.hu_arr[context_idx])
         
-        mask = torch.from_numpy(ct.positive_masks[slice_ind]).unsqueeze(0) # for batching
+        mask = torch.from_numpy(ct.positive_masks[slice_ind]).unsqueeze(0) # for number of channels
         return ct_context, mask, series_uid, slice_ind # last 2 returned values are used for logging purposes. 
     
 
@@ -142,7 +142,7 @@ class TrainingSegmentDataset(SegmentationBase):
     
         
     def shuffle_samples(self):
-        random.shuffle(self.pos_list) # during training we will just use positive slices 
+        random.shuffle(self.pos_list) # during training we will just use positive slices
 
 
     

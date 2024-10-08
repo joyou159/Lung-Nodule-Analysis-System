@@ -210,9 +210,8 @@ class NoduleClassifierTrainingApp():
             val_metrics_per_sample = self.validation_epoch(epoch_ndx, val_dl)
             self.log_metrics(epoch_ndx, "val", val_metrics_per_sample)
 
-        if hasattr(self, 'train_writer'):
-            self.train_writer.close()
-            self.val_writer.close()
+        self.train_writer.close()
+        self.val_writer.close()
 
 
     def training_epoch(self,epoch_ndx , train_dl):

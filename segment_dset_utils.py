@@ -95,7 +95,7 @@ def find_radius(ci, cr, cc, axis, hu_arr, threshold_hu):
     return radius
 
 @functools.lru_cache(1)
-def get_candidate_info_dict(dataset_dir_path, required_on_desk=True, subsets_included = (0,)):
+def get_candidate_info_dict(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
     candidate_list = get_candidate_info_list(dataset_dir_path, required_on_desk, subsets_included)
     candidate_dict = dict()
 
@@ -103,7 +103,6 @@ def get_candidate_info_dict(dataset_dir_path, required_on_desk=True, subsets_inc
         candidate_dict.setdefault(candidate_tuple.series_uid, []).append(candidate_tuple)
     
     return candidate_dict
-
 
 """
 The main purpose of this class is to make the preprocess step of data augmentation to be done on the GPUs.
