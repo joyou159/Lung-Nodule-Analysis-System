@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np 
-from util import CandidateInfoTuple, IRC_tuple
+from common_utils.util import CandidateInfoTuple, IRC_tuple
 from CT import  get_ct
 
 

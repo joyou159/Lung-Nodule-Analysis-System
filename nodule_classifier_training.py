@@ -4,8 +4,8 @@ import datetime
 import torch 
 import torch.nn as nn 
 from torch.utils.data import DataLoader
-from util import *
-from logconfig import *
+from common_utils.util import *
+from common_utils.logconfig import *
 from classifier_dset import *
 from NoduleClassifier import NoduleClassifier 
 from torch.utils.tensorboard import SummaryWriter

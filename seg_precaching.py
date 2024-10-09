@@ -4,8 +4,8 @@ import sys
 import argparse
 from torch.utils.data import DataLoader
 from CT import get_ct_raw_candidates, get_ct_sample_size
-from logconfig import *
-from util import enumerateWithEstimate, DATASET_DIR_PATH
+from common_utils.logconfig import *
+from common_utils.util import enumerateWithEstimate, DATASET_DIR_PATH
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)

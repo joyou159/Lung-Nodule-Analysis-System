@@ -5,8 +5,8 @@ import datetime
 import torch 
 import torch.nn as nn 
 from torch.utils.data import DataLoader
-from util import *
-from logconfig import *
+from common_utils.util import *
+from common_utils.logconfig import *
 from seg_dset import *
 from Unet import UNetWrapper 
 from seg_dset_utils import SegmentationAugmentation

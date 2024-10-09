@@ -2,8 +2,8 @@ from collections import namedtuple
 import torch 
 import random
 import functools
-from util import *
-from disk_caching import * 
+from common_utils.util import *
+from common_utils.disk_caching import * 
 import os
 import csv
 import numpy as np 

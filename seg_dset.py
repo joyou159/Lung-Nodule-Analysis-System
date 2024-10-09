@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset
 from CT import get_ct_sample_size, get_ct, get_ct_raw_candidates
 import random
-from logconfig import *
+from common_utils.logconfig import *
 from seg_dset_utils import get_candidate_info_dict, get_candidate_info_list
 
 log = logging.getLogger(__name__)

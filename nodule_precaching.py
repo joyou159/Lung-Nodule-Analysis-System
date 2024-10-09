@@ -1,4 +1,4 @@
-from util import *
+from common_utils.util import *
 from classifier_dset import LunaDataset
 from torch.utils.data import DataLoader
 import argparse

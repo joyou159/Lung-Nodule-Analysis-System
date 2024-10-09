@@ -2,9 +2,9 @@ import numpy as np
 import glob
 import functools
 import SimpleITK as sitk
-from util import *
-from disk_caching import * 
-from segment_dset import find_radius, get_candidate_info_dict
+from common_utils.util import *
+from common_utils.disk_caching import * 
+from seg_dset import find_radius, get_candidate_info_dict
 
 
 
