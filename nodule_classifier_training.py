@@ -185,7 +185,7 @@ class NoduleClassifierTrainingApp():
 
     def initTensorboardWriters(self):
         if self.train_writer is None: 
-            log_dir = os.path.join('runs', self.args_list.tb_prefix, self.time_str) 
+            log_dir = os.path.join('runs_nodule_classfy', self.args_list.tb_prefix, self.time_str) 
 
             self.train_writer = SummaryWriter(
                 log_dir=log_dir + '-train_cls-' + self.args_list.comment)
@@ -299,9 +299,6 @@ class NoduleClassifierTrainingApp():
 
 
     def log_metrics(self, epoch_ndx:int, mode:str, metrics_per_sample, classification_thr = 0.5):
-
-        self.initTensorboardWriters() 
-
         log.info(f"E{epoch_ndx}, {type(self).__name__}")
         
         # non-nodule class
@@ -343,6 +340,7 @@ class NoduleClassifierTrainingApp():
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/neg"]:.4f} negative loss {metrics_dict["acc/neg"]:.1f}% accuracy, meaning {neg_correct} of {neg_count} are correct')
         log.info(f'E{epoch_ndx} {mode}  {metrics_dict["loss/pos"]:.4f} positive loss {metrics_dict["acc/pos"]:.1f}% accuracy, meaning {pos_correct} of {pos_count} are correct')
         
+        self.initTensorboardWriters() 
         # tensorboard reporting 
         writer = getattr(self, mode + '_writer') # SummaryWriter object 
 

@@ -9,7 +9,7 @@ from segment_dset import find_radius, get_candidate_info_dict
 
 
 class CT: 
-    def __init__(self, series_uid, usage = "classifier"):
+    def __init__(self, series_uid, subsets_included, usage = "classifier"):
         
         mhd_path = glob.glob(f"/kaggle/input/luna16/subset*/subset*/{series_uid}.mhd")[0] # since returns a list 
         ct_mhd = sitk.ReadImage(mhd_path) # this method consumes the .raw file implicitly  
@@ -22,7 +22,7 @@ class CT:
         self.mode = usage
 
         if usage == "segment":
-            self.candidate_info_list = get_candidate_info_dict(DATASET_DIR_PATH,subsets_included=(0,))[self.series_uid] # all the candidate nodules of that subject
+            self.candidate_info_list = get_candidate_info_dict(DATASET_DIR_PATH,subsets_included=subsets_included)[self.series_uid] # all the candidate nodules of that subject
             self.positive_candidates = [candidate for candidate in self.candidate_info_list if candidate.is_nodule] 
             self.positive_masks = self.build_annotation_mask(self.positive_candidates)
             # this line of code extracts the indices of the CT volume which has at least one voxel assigned value 1
@@ -104,30 +104,28 @@ class CT:
 
 @functools.lru_cache(maxsize = 1, typed = True) # this would be enough if we are sure that the nodules loading will occur in order 
 # meaning that all the candidate nodules of specific subject is first extracted, then the second subject's nodules and so on. 
-def get_ct(series_uid, usage):
-    return CT(series_uid, usage)
+def get_ct(series_uid, subset_included,usage):
+    return CT(series_uid, subset_included, usage)
 
 raw_cache = getCache("cache_candidates")
 
 @raw_cache.memoize(typed = True) # save on disk to avoid loading the same ct scan each time to extract specific nodule surrounding 
 # (just upload it once and save it for further nodules extraction from the same subject)
-def get_ct_raw_candidates(series_uid ,xyz_center, irc_diameters, usage = 'classifier'):
-    ct = get_ct(series_uid, usage)
+def get_ct_raw_candidates(series_uid ,xyz_center, irc_diameters, subset_included,usage = 'classifier'):
+    ct = get_ct(series_uid,subset_included ,usage)
     if usage == 'segment':
-        pos_chunk, ct_chunk, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
-        return pos_chunk, ct_chunk, icr_center
+        pos_chunks, ct_chunks, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
+        return pos_chunks, ct_chunks, icr_center
     else:
-        ct_chunk, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
-        return ct_chunk, icr_center
-    
+        ct_chunks, icr_center = ct.get_raw_candidate_nodule(xyz_center, irc_diameters)
+        return ct_chunks, icr_center
+
 
 # this way we would save the returned value from this function call 
 # (later when i call the same function with the same parameter, the function would read it off the disk) 
 @raw_cache.memoize(typed = True)
-def getCtSampleSize(series_uid):
-    ct = CT(series_uid, usage = "segment")
+def get_ct_sample_size(series_uid, subset_included):
+    ct = CT(series_uid, subset_included, usage = "segment")
     return int(ct.hu_arr.shape[0]), ct.positive_indices
     # since the number of channels is different between CT scans
-
-
 

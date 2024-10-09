@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
+import numpy as np 
 from util import CandidateInfoTuple, IRC_tuple
-from classifier_dset import  get_ct
+from CT import  get_ct
 
 
 def visualize_candidate(ct_candidate): 
@@ -65,4 +66,26 @@ def visualize_candidate(ct_candidate):
     print(f"The candidate information: {ct_candidate} \n")
     print(f"shape of CT scan {subject_ct.hu_arr.shape}")
     print(f"The exact location of candidate nodule {icr_center}")
+
+
+
+def visualize_ct_and_mask(ct_slice, mask):
+    # Create a figure with two subplots
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+
+    # Display CT slice alone
+    axs[0].imshow(ct_slice, cmap='gray')
+    axs[0].set_title('CT Slice')
+    axs[0].axis('off') 
+
+    # Create a color image for the superimposed mask
+    colored_mask = np.zeros((*mask.shape, 3)) 
+    colored_mask[mask == 1] = [1, 0, 0]  # Red for mask areas
+
+    # Display CT slice with the mask superimposed
+    axs[1].imshow(ct_slice, cmap='gray')
+    axs[1].imshow(colored_mask, alpha=0.5)  
+    axs[1].set_title('CT Slice with Mask')
+    axs[1].axis('off') 
     
+    plt.tight_layout()

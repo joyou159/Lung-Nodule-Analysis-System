@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from math import sqrt
 
 class UNet(nn.Module):
-    def __init__(self, in_channel,
+    def __init__(self, in_channels,
                 num_classes = 2,
                 resolution_levels = 5,
                 filters_power =  6,
@@ -35,7 +35,7 @@ class UNet(nn.Module):
         self.expansion_path = nn.ModuleList()
 
         # initialize the contraction path 
-        prev_channels = in_channel 
+        prev_channels = in_channels
         for i in range(resolution_levels): # going downstair
             self.contraction_path.append(UNetConvBlock(prev_channels, 2**(i+filters_power), padding, batch_norm))
             prev_channels = 2**(i+filters_power) # for subsequent conv block input channels 
@@ -52,9 +52,9 @@ class UNet(nn.Module):
         for_skips = list()
         for i, down_block in enumerate(self.contraction_path):
             x = down_block(x)
-            if i != (len(self.depth) - 1):
+            if i != (self.depth - 1):
                 for_skips.append(x) # for the upward path concatenation
-                F.max_pool2d(x, 2)
+                x = F.max_pool2d(x, 2)
         
         for i, up_block in enumerate(self.expansion_path):
             x = up_block(x, for_skips[-1 - i]) 
@@ -117,7 +117,7 @@ class UNetUpBlock(nn.Module):
 class UNetWrapper(nn.Module):
     def __init__(self, **kwargs):
         super(UNetWrapper, self).__init__()
-        self.normalize = nn.BatchNorm2d(**kwargs["in_channels"])
+        self.normalize = nn.BatchNorm2d(kwargs["in_channels"])
         self.unet = UNet(**kwargs)
         self.final_layer = nn.Sigmoid()
     
