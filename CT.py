@@ -7,7 +7,6 @@ from common_utils.disk_caching import *
 from seg_dset import find_radius, get_candidate_info_dict
 
 
-
 class CT: 
     def __init__(self, series_uid, subsets_included, usage = "classifier"):
         
@@ -101,10 +100,9 @@ class CT:
 
 
 
-
 @functools.lru_cache(maxsize = 1, typed = True) # this would be enough if we are sure that the nodules loading will occur in order 
 # meaning that all the candidate nodules of specific subject is first extracted, then the second subject's nodules and so on. 
-def get_ct(series_uid, subset_included,usage):
+def get_ct(series_uid, subset_included, usage):
     return CT(series_uid, subset_included, usage)
 
 raw_cache = getCache("cache_candidates")

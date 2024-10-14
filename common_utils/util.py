@@ -4,15 +4,23 @@ import logging
 import logconfig
 import time 
 import datetime
+import csv 
+import glob 
+import functools
+import os
 
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
-CandidateInfoTuple = namedtuple("CandidateInfoTuple", 
+Candidate_Info = namedtuple("Candidate_Info", 
                                 "isNodule_bool, diameter_mm, series_uid, center_xyz")
+
+CandidateInfoTuple = namedtuple('CandidateInfoTuple', 'is_nodule, hasAnnotation_bool, is_malignant, diameter_mm, series_uid, center_xyz')
+
 AugmentationInfo = namedtuple("AugmentationInfo", 
                                 "flip, offset, scale, rotate, noise")
+
 
 DATASET_DIR_PATH = "luna/"
 
@@ -59,6 +67,67 @@ def xyz2irc(xyz_coord, xyz_origin, xyz_sizes, irc_transform_mat):
     cri_coord = ((coordinate_xyz - physical_origin) @ np.linalg.inv(irc_transform_mat)) / physical_sizes
     rounded_cri_coord = np.round(cri_coord).astype(int)     
     return IRC_tuple(*rounded_cri_coord[::-1])
+
+
+@functools.lru_cache(maxsize=1)  # caches the results of function call, if it have been called with the same argument. 
+def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
+
+    mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd") # extract all 
+    if required_on_desk:
+        filtered_mhd_list = [mhd for mhd in mhd_list if any(f"subset{id}" in mhd for id in subsets_included)]
+        uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list} # the unique series_uids for further filtration
+        mhd_list = uids_present_on_disk
+
+    candidates_list = list()
+
+    # extract the nodules (whether they are malignant or benign) that has annotations data without repetition
+    with open("/kaggle/input/annotations-for-segmentation/annotations_for_segmentation.csv", "r") as f:
+        for row in list(csv.reader(f))[1:]: 
+            series_uid = row[0]
+            if series_uid not in mhd_list:
+                continue
+
+            center_xyz = tuple([float(x) for x in row[1:4]])
+            diameter = float(row[4])
+            is_malignant = {"False": False, "True": True}[row[5]] 
+
+
+            candidates_list.append(
+                CandidateInfoTuple(
+                    True, # it's a nodule 
+                    True, # has annotations data already (meaning that there are some nodules that have no annotation data)
+                    is_malignant,
+                    diameter,
+                    series_uid, 
+                    center_xyz
+                )
+            )
+    # extract non-nodule (negative examples so that the U-net model learns to ignore them)
+    with open(os.path.join(dataset_dir_path, "candidates.csv"), "r") as f:
+        for row in list(csv.reader(f))[1:]: 
+            series_uid = row[0]
+
+            if series_uid not in mhd_list:
+                continue
+
+            is_nodule = bool(int(row[4]))
+            center_xyz = tuple([float(x) for x in row[1:4]])
+
+            if not is_nodule: # make sure they 
+                candidates_list.append(
+                    CandidateInfoTuple(
+                        False,   
+                        False,
+                        False,
+                        diameter,
+                        series_uid, 
+                        center_xyz
+                    )
+                )
+    candidates_list.sort(reverse=True)
+    
+    return candidates_list
+
 
 
 """
