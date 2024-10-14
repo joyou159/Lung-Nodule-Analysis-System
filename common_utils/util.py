@@ -128,8 +128,6 @@ def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_inc
     
     return candidates_list
 
-
-
 """
     Source: https://github.com/deep-learning-with-pytorch/dlwpt-code/blob/master/util/util.py
 """
