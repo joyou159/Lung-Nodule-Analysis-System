@@ -5,7 +5,7 @@ import random
 from classifier_dset_utils import *
 
 class LunaDataset(Dataset):
-    def __init__(self,dataset_dir_path:str,
+    def __init__(self, dataset_dir_path:str,
                 subsets_included:tuple = (0,1,2,3,4),
                  val_stride=0,
                  val_set_bool=None,
@@ -33,15 +33,16 @@ class LunaDataset(Dataset):
                 - augmentation_dict: specifying the kind of transformations included in the augmentation process.
                 - candidateInfo_list: list all the information associated to each candidate nodule in the training set.            
         """
-        self.ratio_int = ratio_int
+        self.ratio_int = 1 # default
         self.augmentation_dict = augmentation_dict
         if self.augmentation_dict is not None:
             self.augmentation_model = AugmentationCandidate(augmentation_dict) 
         
 
-        if candidateInfo_list:
+        if candidateInfo_list: 
             self.candidateInfo_list = copy.copy(candidateInfo_list)
-            self.use_cache = False
+            self.use_cache = False # don't use cache in this case because you would be working on just one ct volume. 
+            # thus, it would be left suspended in the memory during the accessing its entries. 
         else:
             self.candidateInfo_list = copy.copy(get_candidate_info_list(DATASET_DIR_PATH, required_on_desk=True,subsets_included = subsets_included))
             self.use_cache = True

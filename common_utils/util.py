@@ -16,7 +16,7 @@ log.setLevel(logging.DEBUG)
 Candidate_Info = namedtuple("Candidate_Info", 
                                 "isNodule_bool, diameter_mm, series_uid, center_xyz")
 
-CandidateInfoTuple = namedtuple('CandidateInfoTuple', 'is_nodule, hasAnnotation_bool, is_malignant, diameter_mm, series_uid, center_xyz')
+CandidateInfoTuple = namedtuple('CandidateInfoTuple', 'is_nodule, has_annotations, is_malignant, diameter_mm, series_uid, center_xyz')
 
 AugmentationInfo = namedtuple("AugmentationInfo", 
                                 "flip, offset, scale, rotate, noise")
