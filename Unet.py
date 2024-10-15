@@ -10,7 +10,8 @@ class UNet(nn.Module):
                 filters_power =  6,
                 padding = False, 
                 batch_norm = False, 
-                up_mode = "learnable"):
+                up_mode = "learnable", 
+                dropout_rate = 0.0):
         
         """
         Implementation of the Unet architecture for biomedical segmentation.
@@ -37,11 +38,11 @@ class UNet(nn.Module):
         # initialize the contraction path 
         prev_channels = in_channels
         for i in range(resolution_levels): # going downstair
-            self.contraction_path.append(UNetConvBlock(prev_channels, 2**(i+filters_power), padding, batch_norm))
+            self.contraction_path.append(UNetConvBlock(prev_channels, 2**(i+filters_power), padding, batch_norm, dropout_rate))
             prev_channels = 2**(i+filters_power) # for subsequent conv block input channels 
 
         for i in reversed(range(resolution_levels-1)): # going upstair  
-            self.expansion_path.append(UNetUpBlock(prev_channels, 2**(i+filters_power), up_mode, padding, batch_norm))
+            self.expansion_path.append(UNetUpBlock(prev_channels, 2**(i+filters_power), up_mode, padding, batch_norm, dropout_rate))
             prev_channels = 2**(i+filters_power)
 
 
@@ -63,7 +64,7 @@ class UNet(nn.Module):
 
 
 class UNetConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, padding, batch_norm):
+    def __init__(self, in_channels, out_channels, padding, batch_norm, dropout_rate):
         super(UNetConvBlock, self).__init__()
         seq_layers = list()
 
@@ -71,6 +72,10 @@ class UNetConvBlock(nn.Module):
         seq_layers.append(nn.ReLU())
         if batch_norm:
             seq_layers.append(nn.BatchNorm2d(out_channels))
+            
+        if dropout_rate > 0:
+            seq_layers.append(nn.Dropout2d(p=dropout_rate))  
+
 
         seq_layers.append(nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=int(padding)))
         seq_layers.append(nn.ReLU())
@@ -85,7 +90,7 @@ class UNetConvBlock(nn.Module):
 
 
 class UNetUpBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, up_mode, padding, batch_norm):
+    def __init__(self, in_channels, out_channels, up_mode, padding, batch_norm, dropout_rate):
         super(UNetUpBlock, self).__init__()
         if up_mode.lower() == "learnable":
             self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
@@ -94,7 +99,7 @@ class UNetUpBlock(nn.Module):
                                     nn.Conv2d(in_channels, out_channels, kernel_size=1))
 
         # IMPORTANT: the input channels hasn't changed even we have performed a up step due to the skip concat   
-        self.conv_block = UNetConvBlock(in_channels, out_channels, padding, batch_norm) 
+        self.conv_block = UNetConvBlock(in_channels, out_channels, padding, batch_norm, dropout_rate) 
 
     def center_crop(self, layer, target_size):
         """
@@ -112,7 +117,7 @@ class UNetUpBlock(nn.Module):
         out = torch.cat([up, crop1], 1)
         out = self.conv_block(out)
         return out
-    
+
 
 class UNetWrapper(nn.Module):
     def __init__(self, **kwargs):
@@ -149,4 +154,3 @@ class UNetWrapper(nn.Module):
         un_output = self.unet(bn_outoput)
         output = self.final_layer(un_output)
         return output
-
