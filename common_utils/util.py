@@ -128,6 +128,17 @@ def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_inc
     
     return candidates_list
 
+@functools.lru_cache(1)
+def get_candidate_info_dict(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
+    candidate_list = get_candidate_info_list(dataset_dir_path, required_on_desk, subsets_included)
+    candidate_dict = dict()
+
+    for candidate_tuple in candidate_list:
+        candidate_dict.setdefault(candidate_tuple.series_uid, []).append(candidate_tuple)
+    
+    return candidate_dict
+
+
 """
     Source: https://github.com/deep-learning-with-pytorch/dlwpt-code/blob/master/util/util.py
 """
