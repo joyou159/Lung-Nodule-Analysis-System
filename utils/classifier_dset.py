@@ -169,7 +169,7 @@ class LunaDataset(Dataset):
 class MalignantLunaDataset(LunaDataset):
     def __len__(self):
         if self.ratio_int:
-            return 100000
+            return 10000
         else:
             return len(self.ben_list + self.mal_list)
 
