@@ -61,7 +61,7 @@ def match_and_score(detections, truth, threshold=0.5, matching_threshold=0.7):
                                        else 3) for d in detections]) 
     
 
-    confusion = np.zeros((3, 4), dtype=np.int)
+    confusion = np.zeros((3, 4), dtype=np.int32)
 
     if len(detected_xyz) == 0: 
         for tn in true_nodules:
@@ -76,7 +76,7 @@ def match_and_score(detections, truth, threshold=0.5, matching_threshold=0.7):
         matches = (normalized_dists < matching_threshold) 
         
         # mark all the detection as matched until otherwise is figured out  
-        unmatched_detections = np.ones(len(detections), dtype=np.bool)
+        unmatched_detections = np.ones(len(detections)).astype(bool)
 
         # mark the lable that our system gives to each true nodule 
         # 0-> non-detected  
@@ -84,7 +84,7 @@ def match_and_score(detections, truth, threshold=0.5, matching_threshold=0.7):
         # 2-> detected and marked as benign in the malignancy classifier. 
         # 3-> detected and marked as malignant in the malignancy classifier.
         # all set to non-detected yet
-        matched_true_nodules = np.zeros(len(true_nodules), dtype=np.int) 
+        matched_true_nodules = np.zeros(len(true_nodules), dtype=np.int32) 
 
         for i_tn, i_detection in zip(*matches.nonzero()): # (num_truth, num_detected) iterations on all the matched (non-zero) detections 
             # given the current true nodule, what is the detection that reaches the most far and near enough (govern by the match threshold)
@@ -95,9 +95,10 @@ def match_and_score(detections, truth, threshold=0.5, matching_threshold=0.7):
             if ud: # any unmached detection
                 confusion[0, dc] += 1 # increment in (non-nodule, dc) cell, where dc-> (0, 1, 2, 3) 
         for tn, dc in zip(true_nodules, matched_true_nodules):
-            confusion[2 if tn.isMal_bool else 1, dc] += 1 
+            confusion[2 if tn.is_malignant else 1, dc] += 1 
 
     return confusion
+
 
 
 
@@ -180,8 +181,8 @@ class NoduleAnalysisApp:
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
 
-        self.seg_model_path = "models\seg_2024-10-11_20.40.34_segment.505150.best.state"
-        self.nodule_model_path = "models\cls_2024-10-14_10.53.24_luna.best.state"
+        self.seg_model_path = "/kaggle/input/nodule_detection_segmentation_model/pytorch/default/1/seg_2024-10-11_20.40.34_segment.505150.best.state"
+        self.nodule_model_path = "/kaggle/input/nodule_classifier_model/pytorch/default/1/cls_2024-10-14_10.53.24_luna.best.state"
         self.malignancy_model_path = None
 
         self.seg_model, self.cls_model, self.malignancy_model = self.init_models()
@@ -207,8 +208,7 @@ class NoduleAnalysisApp:
         
         cls_dict = torch.load(self.nodule_model_path)
 
-        model_cls = NoduleClassifier()
-        cls_model = model_cls()
+        cls_model = NoduleClassifier()
         cls_model.load_state_dict(cls_dict['model_state'])
         cls_model.eval()
 
@@ -221,8 +221,7 @@ class NoduleAnalysisApp:
             cls_model.to(self.device)
 
         if self.malignancy_model_path:
-            model_cls = NoduleClassifier() # after being fine-tuned 
-            malignancy_model = model_cls()
+            malignancy_model =  NoduleClassifier() # after being fine-tuned 
             malignancy_dict = torch.load(self.malignancy_model_path)
             malignancy_model.load_state_dict(malignancy_dict['model_state'])
             malignancy_model.eval()
@@ -271,7 +270,7 @@ class NoduleAnalysisApp:
             "Series",
         )  
 
-        all_confusion = np.zeros((3, 4), dtype=np.int) 
+        all_confusion = np.zeros((3, 4), dtype=np.int32) 
 
         for _, series_uid in series_iter:
             ct = get_ct(series_uid, subset_included = (0,), usage = "segment") 
@@ -300,7 +299,7 @@ class NoduleAnalysisApp:
 
                 print_confusion(series_uid, one_confusion, self.malignancy_model is not None)
 
-        print("Total", all_confusion, self.malignancy_model is not None)  
+        print_confusion("Total", all_confusion, self.malignancy_model is not None)  
 
 
 
@@ -330,7 +329,7 @@ class NoduleAnalysisApp:
             index= np.arange(1, candidate_count+1) # stop is not included 
         ) 
         candidateInfo_list = list()
-        for i, IRC_center in IRC_center_list:
+        for i, IRC_center in enumerate(IRC_center_list):
             XYZ_center = irc2xyz(
             IRC_center, 
             ct.origin_xyz,
@@ -356,8 +355,7 @@ class NoduleAnalysisApp:
                 if self.malignancy_model is not None:
                     _, mal_probabilities_g = self.malignancy_model(input_g)
                 else:
-                    mal_probabilities_g = np.zeros_like(nodule_probabilities_g)
-                
+                    mal_probabilities_g = np.zeros_like(nodule_probabilities_g.cpu().numpy())
             zip_iter = zip(center_list, 
                            nodule_probabilities_g[:,1].tolist(),
                             mal_probabilities_g[:,1].tolist())
@@ -392,7 +390,7 @@ class NoduleAnalysisApp:
 
         return seg_dl
     
-    def init_classification_dl(self,  candidateInfo_list):
+    def init_classification_dl(self, candidateInfo_list):
         cls_ds = LunaDataset(
                 DATASET_DIR_PATH, 
                 subsets_included = (0,),

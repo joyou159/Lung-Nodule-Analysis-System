@@ -13,18 +13,18 @@ class LunaPrepCacheApp:
             sys_argv = sys.argv[1:]
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('--batch_size',
+        parser.add_argument('--batch-size',
             help='Batch size to use for training',
             default=64,
             type=int,
         )
-        parser.add_argument('--num_workers',
+        parser.add_argument('--num-workers',
             help='Number of worker processes for background data loading',
             default=8,
             type=int,
         )
         
-        parser.add_argument('--subsets_included',
+        parser.add_argument('--subsets-included',
             help='The number of subsets included in the training process',
             default=(0,1,2,3,4),
             type=tuple,

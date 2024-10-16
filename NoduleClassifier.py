@@ -2,7 +2,7 @@ import torch.nn as nn
 import numpy as np 
 
 class NoduleClassifier(nn.Module):
-    def __init__(self,in_channels = 1, conv_channels= 8): 
+    def __init__(self,in_channels = 1, conv_channels= 4): 
         super(NoduleClassifier, self).__init__()
 
         self.tail_layer = nn.BatchNorm3d(in_channels)
@@ -19,7 +19,7 @@ class NoduleClassifier(nn.Module):
         # 32 -> 16 -> 8 -> 4 -> 2  (depth)
         self.head_linear = nn.Linear(2 * 3 * 3 * 8 * conv_channels, 2) 
         self.softmax_head = nn.Softmax(dim = 1) 
-        self.dropout = nn.Dropout(0.3)
+        self.dropout = nn.Dropout(0.2)
 
 
     def _init_weights(self):
@@ -58,11 +58,12 @@ class NoduleBlock(nn.Module):
         self.relu2 = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool3d(kernel_size=2,stride=2)
 
+
     def forward(self, input_batch):
         block_out = self.conv1(input_batch)
         block_out = self.relu1(block_out)
         block_out = self.conv2(block_out)
         block_out = self.relu2(block_out)
         
+        
         return self.maxpool(block_out)
-

@@ -5,11 +5,11 @@ import random
 from classifier_dset_utils import *
 
 class LunaDataset(Dataset):
-    def __init__(self, dataset_dir_path:str,
+    def __init__(self,dataset_dir_path:str,
                 subsets_included:tuple = (0,1,2,3,4),
                  val_stride=0,
                  val_set_bool=None,
-                 ratio_int=1,
+                 ratio_int=0,
                  series_uid=None,
                  sortby_str='random',
                  augmentation_dict=None,
@@ -33,16 +33,16 @@ class LunaDataset(Dataset):
                 - augmentation_dict: specifying the kind of transformations included in the augmentation process.
                 - candidateInfo_list: list all the information associated to each candidate nodule in the training set.            
         """
-        self.ratio_int = ratio_int # default
+        self.ratio_int = ratio_int
+        self.subsets_included = subsets_included
         self.augmentation_dict = augmentation_dict
         if self.augmentation_dict is not None:
             self.augmentation_model = AugmentationCandidate(augmentation_dict) 
         
 
-        if candidateInfo_list: 
+        if candidateInfo_list:
             self.candidateInfo_list = copy.copy(candidateInfo_list)
-            self.use_cache = False # don't use cache in this case because you would be working on just one ct volume. 
-            # thus, it would be left suspended in the memory during processing
+            self.use_cache = False
         else:
             self.candidateInfo_list = copy.copy(get_candidate_info_list(DATASET_DIR_PATH, required_on_desk=True,subsets_included = subsets_included))
             self.use_cache = True
@@ -141,11 +141,12 @@ class LunaDataset(Dataset):
                 candidateInfo_tup.series_uid,
                 candidateInfo_tup.center_xyz,
                 width_irc,
+                self.subsets_included
             )
             candidate_t = torch.from_numpy(candidate_a).to(torch.float32)
             candidate_t = candidate_t.unsqueeze(0)
         else:
-            ct = get_ct(candidateInfo_tup.series_uid)
+            ct = get_ct(candidateInfo_tup.series_uid, self.subsets_included, usage="classifier")
             candidate_a, center_irc = ct.get_raw_candidate_nodule(
                 candidateInfo_tup.center_xyz,
                 width_irc,
@@ -162,8 +163,7 @@ class LunaDataset(Dataset):
             label_t[1] = True
             index_t = 1
 
-        return candidate_t, label_t, index_t, candidateInfo_tup.series_uid, IRC_tuple(*center_irc)
-
+        return candidate_t, label_t, index_t, candidateInfo_tup.series_uid, torch.tensor(center_irc)
 
 
 class MalignantLunaDataset(LunaDataset):
