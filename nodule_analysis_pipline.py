@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 import torch
 from torch.utils.data import dataset, DataLoader
-from CT import CT
+from CT import CT, get_ct
 import scipy.ndimage.morphology as morphology
 import scipy.ndimage.measurements as measurements
 from common_utils.util import * 
@@ -20,7 +20,120 @@ import torch.nn as nn
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+def match_and_score(detections, truth, threshold=0.5, matching_threshold=0.7):
+    """
+    Computes a 3x4 confusion matrix to evaluate the performance of a detection algorithm
+    for identifying nodules in medical imaging. The matrix contains counts for various
+    categories based on the type of ground truth and detection outcomes.
 
+    Args:
+        detections (list): A list of detected nodules, each with these info (nodule_prob, mal_prob, XYZ_center, IRC_center).
+
+        truth (list): A list of ground truth annotations for nodules, each with these info 
+        (is_nodule, has_annotations, is_malignant, diameter_mm, series_uid, center_xyz)
+
+        threshold (float, optional): classification threshold for nodule and malignancy classifiers.
+
+    Returns:
+        numpy.ndarray: A 3x4 confusion matrix where:
+            - Rows represent ground truth categories: [Non-Nodules, Benign, Malignant].
+            - Columns represent detection outcomes:
+                [Not Detected, Detected by Segmentation, Detected as Benign, Detected as Malignant].
+
+    Notes:
+        - If multiple detections match a single ground truth nodule, the detection with
+          the "highest" classification (based on severity) is considered.
+        - If a single detection matches multiple ground truth annotations, it counts for
+          all of them.
+    """
+    true_nodules = [c for c in truth if c.is_nodule]
+    truth_diams = np.array([c.diameter_mm for c in true_nodules])
+    truth_xyz = np.array([c.center_xyz for c in true_nodules]) 
+
+    detected_xyz = np.array([n[2] for n in detections]) 
+    # detection classes will contain
+    # 1 -> detected by seg but filtered by cls
+    # 2 -> detected as benign nodule (or nodule if no malignancy model is used)
+    # 3 -> detected as malignant nodule (if applicable) 
+
+    detected_classes = np.array([1 if d[0] < threshold # nodule classificaiotn check 
+                                 else (2 if d[1] < threshold # malignancy classificatiion check 
+                                       else 3) for d in detections]) 
+    
+
+    confusion = np.zeros((3, 4), dtype=np.int)
+
+    if len(detected_xyz) == 0: 
+        for tn in true_nodules:
+            confusion[2 if tn.is_malignant else 1, 0] += 1  # increment for benign and malignant misses 
+    elif len(truth_xyz) == 0: 
+        for dc in detected_classes:
+            confusion[0, dc] += 1 
+    else:
+        # truth_xyz[:, None] -> of shape (num_truth, 1, 3) & detected_xyz[None] -> of shape (1, num_detected, 3) broadcasting is valid 
+        # note that the distance bewteen the detection and ground truth is normalized by the ground truth diameter to make it a function of size.
+        normalized_dists = np.linalg.norm(truth_xyz[:, None] - detected_xyz[None], ord=2, axis=-1) / truth_diams[:, None]  #  returned shape (num_truth, num_detected)
+        matches = (normalized_dists < matching_threshold) 
+        
+        # mark all the detection as matched until otherwise is figured out  
+        unmatched_detections = np.ones(len(detections), dtype=np.bool)
+
+        # mark the lable that our system gives to each true nodule 
+        # 0-> non-detected  
+        # 1-> detected (discarded later in nodule classifier)
+        # 2-> detected and marked as benign in the malignancy classifier. 
+        # 3-> detected and marked as malignant in the malignancy classifier.
+        # all set to non-detected yet
+        matched_true_nodules = np.zeros(len(true_nodules), dtype=np.int) 
+
+        for i_tn, i_detection in zip(*matches.nonzero()): # (num_truth, num_detected) iterations on all the matched (non-zero) detections 
+            # given the current true nodule, what is the detection that reaches the most far and near enough (govern by the match threshold)
+            matched_true_nodules[i_tn] = max(matched_true_nodules[i_tn], detected_classes[i_detection]) 
+            unmatched_detections[i_detection] = False 
+
+        for ud, dc in zip(unmatched_detections, detected_classes):
+            if ud: # any unmached detection
+                confusion[0, dc] += 1 # increment in (non-nodule, dc) cell, where dc-> (0, 1, 2, 3) 
+        for tn, dc in zip(true_nodules, matched_true_nodules):
+            confusion[2 if tn.isMal_bool else 1, dc] += 1 
+
+    return confusion
+
+
+
+def print_confusion(label, confusions, do_mal):
+
+    """
+    - To summarize our system output   (if there is a malignancy check)
+
+                    | Complete Miss  | Filtered Out   | Pred. Benign   | Pred. Malignant
+    ---------------------------------------------------------------------------------------
+    Non-Nodules       |                | value          | value          | value
+    Benign            | value          | value          | value          | value
+    Malignant         | value          | value          | value          | value
+
+    """
+
+    row_labels = ['Non-Nodules', 'Benign', 'Malignant']
+
+    if do_mal:
+        col_labels = ['', 'Complete Miss', 'Filtered Out', 'Pred. Benign', 'Pred. Malignant']
+    else:
+        col_labels = ['', 'Complete Miss', 'Filtered Out', 'Pred. Nodule']
+        confusions[:, -2] += confusions[:, -1] # accumulate the last two columns to form the 'Pred. Nodule' column 
+        confusions = confusions[:, :-1] 
+    cell_width = 16
+    f = '{:>' + str(cell_width) + '}'
+    print(label)
+    print(' | '.join([f.format(s) for s in col_labels]))
+    for i, (l, r) in enumerate(zip(row_labels, confusions)):
+        r = [l] + list(r)
+        if i == 0:
+            r[1] = ''
+        print(' | '.join([f.format(i) for i in r]))
+
+
+ 
 class NoduleAnalysisApp:
     def __init__(self, sys_argv=None):
         if sys_argv is None:
@@ -38,6 +151,18 @@ class NoduleAnalysisApp:
             help='Number of worker processes for background data loading',
             default=4,
             type=int,
+        )
+
+        parser.add_argument('--run-validation',
+            help='Run over validation rather than a single CT.',
+            action='store_true',
+            default=False,
+        )
+
+        parser.add_argument('--include-train',
+            help="Include data that was in the training set. (default: validation data only)",
+            action='store_true',
+            default=False,
         )
 
         parser.add_argument('series_uid',
@@ -60,7 +185,6 @@ class NoduleAnalysisApp:
         self.malignancy_model_path = None
 
         self.seg_model, self.cls_model, self.malignancy_model = self.init_models()
-
 
 
     def init_models(self):
@@ -107,6 +231,76 @@ class NoduleAnalysisApp:
         else:
             malignancy_model = None
         return seg_model, cls_model, malignancy_model
+
+
+    def main(self):
+        log.info(f"Starting {type(self).__name__}, {self.args_list}") 
+
+        val_ds = LunaDataset(DATASET_DIR_PATH, 
+                subsets_included = (0,),val_stride=10, val_set_bool=True) 
+        
+        # get the series for all the validation candidates
+        val_set = set(candidateInfo_tup.series_uid for candidateInfo_tup in val_ds.candidateInfo_list) 
+
+    
+        candidateInfo_list = get_candidate_info_list(DATASET_DIR_PATH, required_on_desk=True,subsets_included = (0,))
+
+        # get the whole positive nodules, whether in the validaiton or training set 
+        positive_set = set(candidateInfo_tup.series_uid for candidateInfo_tup in candidateInfo_list if candidateInfo_tup.is_nodule) 
+
+        # if there is specific series_uid provided
+        if self.args_list.series_uid:
+            series_set = set(self.args_list.series_uid.split(",")) 
+        else:
+            series_set = set(
+                candidateInfo_tup.series_uid
+                for candidateInfo_tup in candidateInfo_list
+            )
+
+        if self.args_list.include_train:
+            train_list = sorted(series_set - val_set)
+
+        else:
+            train_list = list() 
+        
+        val_list = sorted(series_set & val_set) 
+        
+        candidateInfo_dict = get_candidate_info_dict(DATASET_DIR_PATH, required_on_desk=True,subsets_included = (0,))
+        series_iter = enumerateWithEstimate(
+            val_list + train_list,
+            "Series",
+        )  
+
+        all_confusion = np.zeros((3, 4), dtype=np.int) 
+
+        for _, series_uid in series_iter:
+            ct = get_ct(series_uid, subset_included = (0,), usage = "segment") 
+            # pipline start 
+            mask_a = self.segment_ct(ct, series_uid) 
+            groupingInfo_list = self.group_segmentation_output(ct, mask_a, series_uid) 
+            classifications_list = self.classify_candidates(ct, groupingInfo_list) 
+            # pipline end  
+
+            if not self.args_list.run_validation: 
+                print(f"found nodule candidates in {series_uid}:")
+                for prob, prob_mal, center_xyz, center_irc in classifications_list:
+                    if prob > 0.5:
+                        s = f"nodule prob {prob:.3f}, "
+                        if self.malignancy_model:
+                            s += f"malignancy prob {prob_mal:.3f}, "
+                        s += f"center xyz {center_xyz}"
+                        print(s)
+
+            if series_uid in candidateInfo_dict:
+                one_confusion = match_and_score(
+                    classifications_list, candidateInfo_dict[series_uid]
+                ) 
+
+                all_confusion += one_confusion 
+
+                print_confusion(series_uid, one_confusion, self.malignancy_model is not None)
+
+        print("Total", all_confusion, self.malignancy_model is not None)  
 
 
 
