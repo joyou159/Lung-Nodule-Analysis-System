@@ -5,11 +5,11 @@ import datetime
 import torch 
 import torch.nn as nn 
 from torch.utils.data import DataLoader
-from common_utils.util import *
-from common_utils.logconfig import *
-from seg_dset import *
-from Unet import UNetWrapper 
-from seg_dset_utils import SegmentationAugmentation
+from utils.common_utils.util import *
+from utils.common_utils.logconfig import *
+from utils.seg_dset import *
+from utils.Unet import UNetWrapper 
+from utils.seg_dset_utils import SegmentationAugmentation
 from torch.utils.tensorboard import SummaryWriter
 import shutil
 import hashlib

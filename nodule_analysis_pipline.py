@@ -1,18 +1,18 @@
 import sys 
 import logging
-from common_utils.logconfig import * 
+from utils.common_utils.logconfig import * 
 import argparse
 import numpy as np
 import torch
 from torch.utils.data import dataset, DataLoader
-from CT import CT, get_ct
+from utils.CT import CT, get_ct
 import scipy.ndimage.morphology as morphology
 import scipy.ndimage.measurements as measurements
-from common_utils.util import * 
-from seg_dset import SegmentationBase
-from classifier_dset import LunaDataset 
-from Unet import UNetWrapper
-from NoduleClassifier import NoduleClassifier
+from utils.common_utils.util import * 
+from utils.seg_dset import SegmentationBase
+from utils.classifier_dset import LunaDataset 
+from utils.Unet import UNetWrapper
+from utils.NoduleClassifier import NoduleClassifier
 import torch.nn as nn
 
 
