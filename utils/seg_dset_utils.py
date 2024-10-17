@@ -29,9 +29,7 @@ def find_radius(ci, cr, cc, axis, hu_arr, threshold_hu):
     return radius
 
 
-"""
-The main purpose of this class is to make the preprocess step of data augmentation to be done on the GPUs.
-"""
+
 class SegmentationAugmentation(nn.Module):
     def __init__(self, flip=None, offset=None, scale=None, rotate=None, noise=None):
         super().__init__()

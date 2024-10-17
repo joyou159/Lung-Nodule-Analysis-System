@@ -132,7 +132,7 @@ def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_inc
                         False,
                         False,
                         False,
-                        diameter,
+                        0.0,
                         series_uid,
                         center_xyz
                     )
