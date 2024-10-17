@@ -118,26 +118,28 @@ For training, I utilized the Kaggle platform to develop
  both the classification and segmentation models.
 fortunately, half of the dataset, **specifically subsets 0 through 4**, is hosted on Kaggle, which allowed me to set up a notebook and began working directly.
 
-<div style="text-align: center; margin-bottom: 20px;">
-    <div style="display: inline-block; margin: 10px;">
+
+<div align="center" style="display: flex; justify-content: center; gap: 20px;">
+    <div style="text-align: center;">
         <a href="https://www.kaggle.com/code/joyou159/nodule-malignancy-classifiers">
             <img src="READMD-Assets/Kaggle_logo.png" alt="Classification Models" width="100" />
         </a>
         <p>Classification Models</p>
     </div>
-    <div style="display: inline-block; margin: 10px;">
+    <div style="text-align: center;">
         <a href="https://www.kaggle.com/code/joyou159/nodule-detection">
             <img src="READMD-Assets/Kaggle_logo.png" alt="Segmentation Model" width="100" />
         </a>
         <p>Segmentation Model</p>
     </div>
-    <div style="display: inline-block; margin: 10px;">
+    <div style="text-align: center;">
         <a href="https://www.kaggle.com/code/joyou159/luna-pipline/notebook">
-            <img src="READMD-Assets/Kaggle_logo.png" alt="Analysis Pipline" width="100" />
+            <img src="READMD-Assets/Kaggle_logo.png" alt="Analysis Pipeline" width="100" />
         </a>
-        <p>Analysis Pipline</p>
+        <p>Analysis Pipeline</p>
     </div>
 </div>
+
 
 Each notebook works as a standalone module, so feel free to investigate each one individually.
 
