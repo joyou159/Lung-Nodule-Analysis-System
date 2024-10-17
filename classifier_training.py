@@ -91,12 +91,17 @@ class ClassificationTrainingApp():
         self.totalTrainingSamples_count = 0
         
         self.augmentation_dict = {}
-        if True: # default 
-            self.augmentation_dict['flip'] = True
-            self.augmentation_dict['offset'] = 0.1
-            self.augmentation_dict['scale'] = 0.5
-            self.augmentation_dict['rotate'] = True
-            self.augmentation_dict['noise'] = 0 
+        if self.args_list.augmented:
+            if self.args_list.augment_flip:
+                self.augmentation_dict['flip'] = True
+            if self.args_list.augment_offset:
+                self.augmentation_dict['offset'] = 0.1
+            if self.args_list.augment_scale:
+                self.augmentation_dict['scale'] = 0.5
+            if self.args_list.augment_rotate:
+                self.augmentation_dict['rotate'] = True
+            if self.args_list.augment_noise: # this value must be chosen carefully, because it might result in a disasters 
+                self.augmentation_dict['noise'] = 30.0 # max density deviation is 20 (adjusted range used [-1000, 1000])
 
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
