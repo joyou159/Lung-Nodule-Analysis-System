@@ -2,7 +2,7 @@
 
 
 <p align="center">
-  <img src="READMD-Assets\Project_Steps.png" alt="The project outlines" title="The project outlines" width="450" />
+  <img src="READMD-Assets\Project_Steps.png" alt="The project outlines" title="The project outlines" width="550" />
 </p>
 
 This project is an end-to-end deep learning pipeline for lung cancer detection using **3D CT** scan data. Through five-stages pipline we seek to detect candidate lumps in the lung that potentially look like nodules using segmentation, then screening them out using cascade of tailored CNN classifiers for malignancy
@@ -53,10 +53,8 @@ Relevant file:
 ### 4. Nodule Classification 
 
 <p align="center">
-  <img src="READMD-Assets\Classifier_architecture.png" alt="CNN cls architecture" title="CNN cls architecture" width="450" />
+  <img src="READMD-Assets\Classifier_architecture.png" alt="CNN cls architecture" title="CNN cls architecture" width="500" />
 </p>
-
-### 4. Nodule Classification
 
 After grouping the potential nodules detected by the segmentation model, the next step is to screen out any false positives using a CNN-based binary classification network. This step aims to refine the detection by distinguishing between actual nodules and non-nodules. All components for this subsystem are implemented from scratch, including:
 
@@ -94,6 +92,7 @@ For more details, visit the [LUNA 2016 Grand Challenge](https://luna16.grand-cha
 > [!NOTE]  
 > Due to limited computational resources, the pipeline models were trained on only one subset of the dataset instead of the entire LUNA 2016 dataset. As a result, the overall performance may be slightly reduced compared to a model trained on the full dataset.
  
+
 
 
 
