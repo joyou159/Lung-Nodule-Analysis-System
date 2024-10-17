@@ -153,7 +153,77 @@ During the training process, i employed TensorBoard to monitor model metrics and
 
 ### Models Retraining Setup 
 
-1. Segmentation model 
+Before retraining these models, ensure that you adjust the file paths in the source code:
+
+- Update the path to [`malignancy_annotations\annotations_for_malignancy.csv`](malignancy_annotations\annotations_for_malignancy.csv) in the source code to match your local setup.
+
+- Set the dataset directory paths as needed to reflect your environment. 
+
+
+1. **Classification Models**
+    
+    ```bash
+    # precaching to speed up training process
+    python utils\nodule_precaching.py \
+      --num-workers 4 \
+      --batch-size 64 \
+      --subsets-included 0 \  # include more subsets if possible
+    ```
+
+    ```bash
+    # Use --help to get more details about each argument
+    # training nodule classifier
+    python classifier_training.py \
+      --num-workers 4 \
+      --batch-size 128 \
+      --epochs 10 \
+      --subsets-included 0 \  # include more subsets if possible
+      --augmented \
+      --augment-flip \
+      --augment-offset \
+      --augment-scale \
+      --augment-rotate \
+      --augment-noise
+    ```
+
+    ```bash
+    # Use --help to get more details about each argument
+    # malignancy classifier fine-tuning
+    python classifier_training.py \
+      --num-workers 4 \
+      --batch-size 64 \
+      --malignant \
+      --dataset MalignantLunaDataset \
+      --finetune nodule_cls_model_path \  
+      --finetune-depth 1 \
+      --epochs 10 \
+      --subsets-included 0 \  # include more subsets if possible
+    ```
+
+2. **Segmentation Model** 
+    
+    ```bash
+    # precaching to speed up training process
+    python utils\seg_precaching.py \
+      --num-workers 4 \
+      --batch-size 64 \
+      --subsets-included 0 \  # include more subsets if possible
+    ```
+
+    ```bash
+    # try --help to get more details about each argument
+    python seg_training.py \
+      --num-workers 4 \
+      --batch-size 128 \
+      --epochs 10 \
+      --subsets-included 0 \  # include more subsets if possible
+      --augmented \
+      --augment-flip \
+      --augment-offset \
+      --augment-scale \
+      --augment-rotate \
+      --augment-noise
+    ```
 
 
 
