@@ -119,27 +119,28 @@ For training, I utilized the Kaggle platform to develop
 fortunately, half of the dataset, **specifically subsets 0 through 4**, is hosted on Kaggle, which allowed me to set up a notebook and began working directly.
 
 
-<div align="center" style="display: flex; justify-content: center; gap: 20px;">
-    <div style="text-align: center;">
-        <a href="https://www.kaggle.com/code/joyou159/nodule-malignancy-classifiers">
-            <img src="READMD-Assets/Kaggle_logo.png" alt="Classification Models" width="100" />
-        </a>
-        <p>Classification Models</p>
-    </div>
-    <div style="text-align: center;">
-        <a href="https://www.kaggle.com/code/joyou159/nodule-detection">
-            <img src="READMD-Assets/Kaggle_logo.png" alt="Segmentation Model" width="100" />
-        </a>
-        <p>Segmentation Model</p>
-    </div>
-    <div style="text-align: center;">
-        <a href="https://www.kaggle.com/code/joyou159/luna-pipline/notebook">
-            <img src="READMD-Assets/Kaggle_logo.png" alt="Analysis Pipeline" width="100" />
-        </a>
-        <p>Analysis Pipeline</p>
-    </div>
-</div>
-
+<table align="center">
+    <tr>
+        <td align="center">
+            <a href="https://www.kaggle.com/code/joyou159/nodule-malignancy-classifiers">
+                <img src="READMD-Assets/Kaggle_logo.png" alt="Classification Models" width="100" />
+            </a>
+            <p>Classification Models</p>
+        </td>
+        <td align="center">
+            <a href="https://www.kaggle.com/code/joyou159/nodule-detection">
+                <img src="READMD-Assets/Kaggle_logo.png" alt="Segmentation Model" width="100" />
+            </a>
+            <p>Segmentation Model</p>
+        </td>
+        <td align="center">
+            <a href="https://www.kaggle.com/code/joyou159/luna-pipline/notebook">
+                <img src="READMD-Assets/Kaggle_logo.png" alt="Analysis Pipeline" width="100" />
+            </a>
+            <p>Analysis Pipeline</p>
+        </td>
+    </tr>
+</table>
 
 Each notebook works as a standalone module, so feel free to investigate each one individually.
 
