@@ -68,10 +68,67 @@ def xyz2irc(xyz_coord, xyz_origin, xyz_sizes, irc_transform_mat):
     rounded_cri_coord = np.round(cri_coord).astype(int)     
     return IRC_tuple(*rounded_cri_coord[::-1])
 
-import functools
-import os
-import glob
-import csv
+@functools.lru_cache(maxsize=1)  # caches the results of function call, if it have been called with the same argument. 
+def get_unified_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
+    """ 
+    Generate a more sanitized, cleaned, unified interface to the human
+    annotated data.
+    
+    Args:
+        dataset_dir_path (str): The path to dataset dir. 
+        required_on_desk (bool): If True, filters candidates based on the subsets present on disk.
+        num_subsets_included (tuple): the subsets to be included from the on-desk dataset. 
+                                    This is specifically useful in case of computational limitation. 
+    Returns:
+        list: List of 'CandidateInfoTuple' for all the subjects of existing CT scans.
+    """
+    
+    mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd") # extract all 
+    filtered_mhd_list = [mhd for mhd in mhd_list if any(f"subset{id}" in mhd for id in subsets_included)]
+    uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list} # the unique series_uids for further filtration
+    
+    annotation_info = dict()
+    
+    with open(os.path.join(dataset_dir_path, "annotations.csv")) as f:
+        for row in list(csv.reader(f))[1:]: # neglect the first indexing column 
+            series_uid = row[0]
+            nodule_center = np.array([float(x) for x in row[1:4]]) # x, y, z 
+            nodule_diameter = float(row[4])
+            annotation_info.setdefault(series_uid, []).append((nodule_center, nodule_diameter)) 
+            # meaning that same series_uid has multiple annotations for mutliple nodules  
+    
+    candidate_list = list()
+    with open(os.path.join(dataset_dir_path, "candidates.csv")) as f:
+        for row in list(csv.reader(f))[1:]:
+            series_uid = row[0]
+            
+            if series_uid not in uids_present_on_disk and required_on_desk: 
+                continue # meaning that subject doesn't exist on the desk 
+                
+            nodule_flag = bool(int(row[4])) # is it an actual nodule?
+            cand_nodule_center = np.array([float(x) for x in row[1:4]])
+            cand_nodule_diameter = 0.0 # the assigned value to the fake nodules (incorrect assumption but won't hurt)
+            
+            for annotation_tup in annotation_info.get(series_uid, []):  # this way of iterating provides me a default value (robust to missing key error)
+                nodule_center, nodule_diameter = annotation_tup 
+                diff = np.abs(cand_nodule_center - nodule_center)
+                # check whether there is any huge (more that half the raduis) deviation in any direction 
+                if not (np.all(diff < nodule_diameter / 4)):  
+                    pass # leave the candidate diameter zero, as it's actually a fake candidate  
+                else:
+                    cand_nodule_diameter = nodule_diameter 
+                    break # meaning i reached to the annotation corresponding to what i need, so get out. 
+            candidate_list.append(
+                Candidate_Info(nodule_flag,
+                                   cand_nodule_diameter,
+                                   series_uid,
+                                   cand_nodule_center))
+            
+    candidate_list.sort(key = lambda x: (x.isNodule_bool, x.diameter_mm),reverse=True) # sort by 'nodule_flag' first, then by 'cand_nodule_diameter' 
+    # so overall, the returned list has the candidates that are nodules indeed ordered descendingly by their sizes  
+    # after that come the non-nodule candidates
+    return candidate_list
+
 
 @functools.lru_cache(maxsize=1)
 def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_included=(0, 1, 2, 3, 4)):
