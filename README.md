@@ -2,7 +2,7 @@
 
 
 <p align="center">
-  <img src="READMD-Assets\Project_Steps.png" alt="The project outlines" title="The project outlines" width="550" />
+  <img src="READMD-Assets\Project_Steps.png" alt="The project outlines" title="The project outlines" width="700" />
 </p>
 
 This project is an end-to-end deep learning pipeline for lung cancer detection using **3D CT** scan data. Through five-stages pipline we seek to detect candidate lumps in the lung that potentially look like nodules using segmentation, then screening them out using cascade of tailored CNN classifiers for malignancy
