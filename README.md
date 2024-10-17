@@ -89,9 +89,28 @@ This project uses the **LUNA 2016 (LUng Nodule Analysis)** dataset, which consis
 
 For more details, visit the [LUNA 2016 Grand Challenge](https://luna16.grand-challenge.org/Description).
 
+## Installation
+
+To set up the Lung Nodule Analysis System, follow these steps:
+
+1. **Clone the Repository**
+   
+   First, clone the repository to your local machine:
+   ```bash
+   git clone git@github.com:joyou159/Lung-Nodule-Analysis-System.git
+   cd Lung-Nodule-Analysis-System 
+    ```
+2. **Install Dependencies** 
+
+   First, clone the repository to your local machine:
+   ```bash
+    pip install -r requirements.txt
+    ```
+
+## Models Training
+
 > [!NOTE]  
-> Due to limited computational resources, the pipeline models were trained on only one subset of the dataset instead of the entire LUNA 2016 dataset. As a result, the overall performance may be slightly reduced compared to a model trained on the full dataset.
- 
+> Due to limited computational resources, the pipeline models were trained using only one subset of the LUNA 2016 dataset rather than the full dataset. Consequently, the model's performance may be somewhat lower than if it were trained on the complete dataset. If you have sufficient computational resources, you are encouraged to train the models on the entire dataset, as this would significantly enhance performance. 
 
 
 
