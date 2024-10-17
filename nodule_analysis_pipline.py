@@ -172,11 +172,6 @@ class NoduleAnalysisApp:
             help="Series UID to use.",
         )
 
-        parser.add_argument('--tb-prefix',
-            default='nodule-analysis',
-            help="Data prefix to use for Tensorboard run.",
-        )
-
         self.args_list = parser.parse_args(sys_argv)
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
@@ -405,4 +400,7 @@ class NoduleAnalysisApp:
         )
 
         return cls_dl
-    
+
+# usual 'if-main' stanza
+if __name__ == "__main__":
+    NoduleAnalysisApp().main()
