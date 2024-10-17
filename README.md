@@ -225,7 +225,7 @@ Before retraining these models, ensure that you adjust the file paths in the sou
       --augment-noise
     ```
 
-### Acknowledgments
+## Acknowledgments
 
 Inspired by **"Deep Learning with PyTorch"** (Part 2) by Eli Stevens, Luca Antiga, and Thomas Viehmann, Manning Publications.
 
