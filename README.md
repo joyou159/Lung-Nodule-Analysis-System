@@ -95,24 +95,62 @@ To set up the Lung Nodule Analysis System, follow these steps:
 
 1. **Clone the Repository**
    
-   First, clone the repository to your local machine:
    ```bash
    git clone git@github.com:joyou159/Lung-Nodule-Analysis-System.git
    cd Lung-Nodule-Analysis-System 
     ```
 2. **Install Dependencies** 
 
-   First, clone the repository to your local machine:
    ```bash
     pip install -r requirements.txt
+    ```
+3. **Run Infernece**
+
+    ```bash
+    # check --help to get all possible command-line arguments 
+    python nodule_analysis_app.py "subject's series_uid" 
     ```
 
 ## Models Training
 
+
+For training, I utilized the Kaggle platform to develop
+ both the classification and segmentation models.
+fortunately, half of the dataset, **specifically subsets 0 through 4**, is hosted on Kaggle, which allowed me to set up a notebook and began working directly.
+
+<div style="text-align: center; margin-bottom: 20px;">
+    <div style="display: inline-block; margin: 10px;">
+        <a href="https://www.kaggle.com/code/joyou159/nodule-malignancy-classifiers">
+            <img src="READMD-Assets/Kaggle_logo.png" alt="Classification Models" width="100" />
+        </a>
+        <p>Classification Models</p>
+    </div>
+    <div style="display: inline-block; margin: 10px;">
+        <a href="https://www.kaggle.com/code/joyou159/nodule-detection">
+            <img src="READMD-Assets/Kaggle_logo.png" alt="Segmentation Model" width="100" />
+        </a>
+        <p>Segmentation Model</p>
+    </div>
+    <div style="display: inline-block; margin: 10px;">
+        <a href="https://www.kaggle.com/code/joyou159/luna-pipline/notebook">
+            <img src="READMD-Assets/Kaggle_logo.png" alt="Analysis Pipline" width="100" />
+        </a>
+        <p>Analysis Pipline</p>
+    </div>
+</div>
+
+Each notebook works as a standalone module, so feel free to investigate each one individually.
+
+During the training process, i employed TensorBoard to monitor model metrics and performance while identifying any potential issues. You can explore these insights by launching the
+ [`tensorboard.ipynb`](tensorboard.ipynb) notebook after specifying the runs file.
+
+
 > [!NOTE]  
-> Due to limited computational resources, the pipeline models were trained using only one subset of the LUNA 2016 dataset rather than the full dataset. Consequently, the model's performance may be somewhat lower than if it were trained on the complete dataset. If you have sufficient computational resources, you are encouraged to train the models on the entire dataset, as this would significantly enhance performance. 
+> Due to limited on-disk space on Kaggle (≈ 19.5GB) and computational resources quota, the pipeline models were trained using only one subset of the LUNA 2016 dataset instead of the entire dataset. This limitation was necessary for on-disk dataset pre-caching to ensure high-speed training. As a result, the model's performance may be somewhat lower than if it had been trained on the complete dataset. If you have sufficient computational resources, we encourage you to train the models on the entire dataset, as this would significantly enhance performance.
 
+### Models Retraining Setup 
 
+1. Segmentation model 
 
 
 
