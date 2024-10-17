@@ -53,7 +53,7 @@ Relevant file:
 ### 4. Nodule Classification 
 
 <p align="center">
-  <img src="READMD-Assets\Classifier_architecture.png" alt="CNN cls architecture" title="CNN cls architecture" width="500" />
+  <img src="READMD-Assets\Classifier_architecture.png" alt="CNN cls architecture" title="CNN cls architecture" width="600" />
 </p>
 
 After grouping the potential nodules detected by the segmentation model, the next step is to screen out any false positives using a CNN-based binary classification network. This step aims to refine the detection by distinguishing between actual nodules and non-nodules. All components for this subsystem are implemented from scratch, including:
@@ -225,9 +225,7 @@ Before retraining these models, ensure that you adjust the file paths in the sou
       --augment-noise
     ```
 
+### Acknowledgments
 
-
-
-
-
+Inspired by **"Deep Learning with PyTorch"** (Part 2) by Eli Stevens, Luca Antiga, and Thomas Viehmann, Manning Publications.
 
