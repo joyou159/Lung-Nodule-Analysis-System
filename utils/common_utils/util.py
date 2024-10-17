@@ -68,74 +68,98 @@ def xyz2irc(xyz_coord, xyz_origin, xyz_sizes, irc_transform_mat):
     rounded_cri_coord = np.round(cri_coord).astype(int)     
     return IRC_tuple(*rounded_cri_coord[::-1])
 
+import functools
+import os
+import glob
+import csv
 
-@functools.lru_cache(maxsize=1)  # caches the results of function call, if it have been called with the same argument. 
-def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
+@functools.lru_cache(maxsize=1)
+def get_candidate_info_list(dataset_dir_path, required_on_desk=True, subsets_included=(0, 1, 2, 3, 4)):
+    """
+    Retrieves a list of candidate nodules from the dataset, including annotated nodules and non-nodules with malignancy info included.
 
-    mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd") # extract all 
+    Args:
+        dataset_dir_path (str): The path to the dataset directory containing the candidate information.
+        required_on_desk (bool, optional): If True, filters the files based on whether they are in the specified subsets. Defaults to True.
+        subsets_included (tuple of int, optional): Subsets to include for filtering if required_on_desk is True. Defaults to (0, 1, 2, 3, 4).
+
+    Returns:
+        list: A list of CandidateInfoTuple objects containing information about nodules and non-nodules.
+    """
+    mhd_list = glob.glob("/kaggle/input/luna16/subset*/subset*/*.mhd")
     if required_on_desk:
         filtered_mhd_list = [mhd for mhd in mhd_list if any(f"subset{id}" in mhd for id in subsets_included)]
-        uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list} # the unique series_uids for further filtration
+        uids_present_on_disk = {os.path.split(p)[-1][:-4] for p in filtered_mhd_list}
         mhd_list = uids_present_on_disk
 
-    candidates_list = list()
+    candidates_list = []
 
-    # extract the nodules (whether they are malignant or benign) that has annotations data without repetition
-    with open("/kaggle/input/annotations-for-segmentation/annotations_for_segmentation.csv", "r") as f:
-        for row in list(csv.reader(f))[1:]: 
+    # Extract nodules with annotations data
+    with open("/kaggle/input/annotations-for-segmentation/annotations_for_malignancy.csv", "r") as f:
+        for row in list(csv.reader(f))[1:]:
             series_uid = row[0]
             if series_uid not in mhd_list:
                 continue
 
             center_xyz = tuple([float(x) for x in row[1:4]])
             diameter = float(row[4])
-            is_malignant = {"False": False, "True": True}[row[5]] 
-
+            is_malignant = {"False": False, "True": True}[row[5]]
 
             candidates_list.append(
                 CandidateInfoTuple(
-                    True, # it's a nodule 
-                    True, # has annotations data already (meaning that there are some nodules that have no annotation data)
+                    True,  # It's a nodule
+                    True,  # Has annotation data
                     is_malignant,
                     diameter,
-                    series_uid, 
+                    series_uid,
                     center_xyz
                 )
             )
-    # extract non-nodule (negative examples so that the U-net model learns to ignore them)
-    with open(os.path.join(dataset_dir_path, "candidates.csv"), "r") as f:
-        for row in list(csv.reader(f))[1:]: 
-            series_uid = row[0]
 
+    # Extract non-nodules (negative examples)
+    with open(os.path.join(dataset_dir_path, "candidates.csv"), "r") as f:
+        for row in list(csv.reader(f))[1:]:
+            series_uid = row[0]
             if series_uid not in mhd_list:
                 continue
 
             is_nodule = bool(int(row[4]))
             center_xyz = tuple([float(x) for x in row[1:4]])
 
-            if not is_nodule: # make sure they 
+            if not is_nodule:
                 candidates_list.append(
                     CandidateInfoTuple(
-                        False,   
+                        False,
                         False,
                         False,
                         diameter,
-                        series_uid, 
+                        series_uid,
                         center_xyz
                     )
                 )
     candidates_list.sort(reverse=True)
-    
+
     return candidates_list
 
-@functools.lru_cache(1)
-def get_candidate_info_dict(dataset_dir_path, required_on_desk=True, subsets_included = (0,1,2,3,4)):
+@functools.lru_cache(maxsize=1)
+def get_candidate_info_dict(dataset_dir_path, required_on_desk=True, subsets_included=(0, 1, 2, 3, 4)):
+    """
+    Retrieves a dictionary mapping series UIDs to lists of candidate nodules.
+
+    Args:
+        dataset_dir_path (str): The path to the dataset directory containing the candidate information.
+        required_on_desk (bool, optional): If True, filters the files based on whether they are in the specified subsets. Defaults to True.
+        subsets_included (tuple of int, optional): Subsets to include for filtering if required_on_desk is True. Defaults to (0, 1, 2, 3, 4).
+
+    Returns:
+        dict: A dictionary where each key is a series UID, and the value is a list of CandidateInfoTuple objects.
+    """
     candidate_list = get_candidate_info_list(dataset_dir_path, required_on_desk, subsets_included)
-    candidate_dict = dict()
+    candidate_dict = {}
 
     for candidate_tuple in candidate_list:
         candidate_dict.setdefault(candidate_tuple.series_uid, []).append(candidate_tuple)
-    
+
     return candidate_dict
 
 
