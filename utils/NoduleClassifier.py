@@ -2,7 +2,7 @@ import torch.nn as nn
 import numpy as np 
 
 class NoduleClassifier(nn.Module):
-    def __init__(self,in_channels = 1, conv_channels= 4): 
+    def __init__(self,in_channels = 1, conv_channels= 8): 
         super(NoduleClassifier, self).__init__()
 
         self.tail_layer = nn.BatchNorm3d(in_channels)
