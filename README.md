@@ -227,5 +227,5 @@ Before retraining these models, ensure that you adjust the file paths in the sou
 
 ## Acknowledgments
 
-This project is guided by "Deep Learning with PyTorch" by Eli Stevens, Luca Antiga, and Thomas Viehmann, published by Manning Publications. The concepts and techniques discussed in Part 2 of the book have been particularly influential in shaping the implementation and design of this codebase.
+This project is guided by "Deep Learning with PyTorch" by Eli Stevens, Luca Antiga, and Thomas Viehmann, published by Manning Publications. The concepts and techniques discussed in Part 2 of the book have been particularly influential in shaping the implementation and design of this pipline.
 
